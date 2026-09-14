@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: eunoia
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/eunoia
+    username: ${DB_USERNAME:eunoia}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+
+logging:
+  level:
+    org.hibernate: info

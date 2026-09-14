@@ -1,0 +1,8 @@
+rootProject.name = 'eunoia'
+
+include 'common'
+include 'identity'
+include 'journal'
+include 'analysis'
+include 'insight'
+include 'app'

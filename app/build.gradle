@@ -1,0 +1,28 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+// analysis 모듈이 쓰는 spring-ai-starter-model-openai의 버전을, 실제로 클래스패스를 리졸브하는
+// 이 모듈(app)에서도 알아야 한다 — io.spring.dependency-management는 리졸브 주체 프로젝트 기준으로
+// 적용되므로, analysis의 dependencyManagement만으로는 app의 runtimeClasspath 리졸브 시점에 전파되지 않는다.
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:2.0.0" // analysis/build.gradle과 버전 동기화 유지
+    }
+}
+
+dependencies {
+    implementation project(':common')
+    implementation project(':identity')
+    implementation project(':journal')
+    implementation project(':analysis')
+    implementation project(':insight')
+
+    implementation 'org.springframework.modulith:spring-modulith-starter-core'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
+    testImplementation 'org.springframework.modulith:spring-modulith-docs' // 모듈 다이어그램 생성용(포트폴리오 목적)
+}

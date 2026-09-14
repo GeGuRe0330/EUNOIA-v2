@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:2.0.0" // 착수 시 최신 버전 재확인
+    }
+}
+
+dependencies {
+    implementation project(':common')
+    implementation project(':journal')   // EmotionEntryRecorded 이벤트 타입 참조용(예외적 컴파일 의존)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
