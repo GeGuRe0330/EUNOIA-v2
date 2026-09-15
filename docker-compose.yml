@@ -1,0 +1,29 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: eunoia-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - TZ=Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - eunoia-mysql-data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      # -h 127.0.0.1 (TCP): "localhost"로 하면 유닉스 소켓으로 붙는데, 최초 기동 시 초기화용
+      # 임시 서버가 --skip-networking 상태로 같은 소켓에 떠 있어 healthy를 오조기 보고할 수 있음
+      # (얼리버드 infrastructure/docker-compose.yml에서 실제로 겪은 이슈).
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  eunoia-mysql-data:
