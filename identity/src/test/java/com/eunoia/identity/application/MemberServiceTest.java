@@ -1,0 +1,67 @@
+package com.eunoia.identity.application;
+
+import com.eunoia.identity.application.dto.MemberInfo;
+import com.eunoia.identity.application.dto.RegisterMemberCommand;
+import com.eunoia.identity.domain.Gender;
+import com.eunoia.identity.domain.Member;
+import com.eunoia.identity.domain.MemberRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class MemberServiceTest {
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    private MemberService memberService;
+
+
+    @BeforeEach
+    void setUp() {
+        memberService = new MemberService(memberRepository, passwordEncoder);
+    }
+
+    @Test
+    @DisplayName("이미 가입된 이메일로 가입하면 예외가 발생한다.")
+    void register_withDuplicateEmail_throws() {
+        when(memberRepository.existsByEmail("test@test.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> memberService.register(
+                new RegisterMemberCommand("test@test.com", "rawPassword1!", "하나", 20, Gender.FEMALE)))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("가입 시 비밀번호를 인코딩해서 저장한다.")
+    void register_encodesPasswordBeforeSaving() {
+        when(memberRepository.existsByEmail("test@test.com")).thenReturn(false);
+        when(passwordEncoder.encode("rawPassword1!")).thenReturn("encoded-password");
+        ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
+        when(memberRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
+
+        MemberInfo result = memberService.register(
+                new RegisterMemberCommand("test@test.com", "rawPassword1!", "하나",  20, Gender.FEMALE));
+
+        assertThat(captor.getValue().getPassword()).isEqualTo("encoded-password");
+        assertThat(result.email()).isEqualTo("test@test.com");
+        assertThat(result.nickname()).isEqualTo("하나");
+        assertThat(result.age()).isEqualTo(20);
+        assertThat(result.gender()).isEqualTo(Gender.FEMALE);
+    }
+}

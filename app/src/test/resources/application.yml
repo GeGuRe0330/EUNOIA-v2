@@ -1,0 +1,17 @@
+# 테스트 전용 설정 — src/test/resources의 application.yml이 main의 것을 덮어쓴다.
+# main은 ddl-auto: validate(스키마가 이미 있다는 전제)라, 마이그레이션 도구가 없는 이 프로젝트에서는
+# Testcontainers가 띄운 빈 MySQL에 스키마가 없어 검증이 실패한다 — 테스트에선 create로 자동 생성한다.
+spring:
+  application:
+    name: eunoia
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+        format_sql: true
+  # analysis 모듈의 Spring AI(OpenAI) 자동 설정이 컨텍스트 부팅 시 자격 증명 존재 여부를 검증한다 —
+  # 이 브랜치는 OpenAI를 실제로 호출하지 않으므로, 운영 값과 무관한 더미 값만 채워 부팅을 통과시킨다.
+  ai:
+    openai:
+      api-key: test-key
