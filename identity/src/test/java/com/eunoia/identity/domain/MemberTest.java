@@ -72,6 +72,26 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("승인하면 상태가 ACTIVE로 바뀐다.")
+    void approve_fromPending_setsActive() {
+        Member member = Member.register("test@test.com", "encoded", "하나", 20, Gender.FEMALE);
+
+        member.approve();
+
+        assertThat(member.getStatus()).isEqualTo(Status.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("이미 승인된 회원은 다시 승인하면 예외가 발생한다.")
+    void approve_alreadyActive_throws() {
+        Member member = Member.register("test@test.com", "encoded", "하나", 20, Gender.FEMALE);
+        member.approve();
+
+        assertThatThrownBy(member :: approve)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     @DisplayName("유효한 값으로 가입하면 모든 필드가 그대로 저장된다.")
     void register_withValidArguments_setAllFields() {
         Member member = Member.register("test@test.com", "encoded", "하나", 20, Gender.FEMALE);
@@ -81,5 +101,7 @@ class MemberTest {
         assertThat(member.getNickname()).isEqualTo("하나");
         assertThat(member.getAge()).isEqualTo(20);
         assertThat(member.getGender()).isEqualTo(Gender.FEMALE);
+        assertThat(member.getRole()).isEqualTo(Role.USER);
+        assertThat(member.getStatus()).isEqualTo(Status.PENDING);
     }
 }

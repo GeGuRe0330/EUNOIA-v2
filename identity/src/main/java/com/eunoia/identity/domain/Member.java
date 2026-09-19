@@ -31,6 +31,14 @@ public class Member extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Role role;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Status status;
+
     private Member(String email, String encodedPassword, String nickname, Integer age, Gender gender) {
         validateEmail(email);
         validatePassword(encodedPassword);
@@ -43,10 +51,19 @@ public class Member extends BaseEntity {
         this.nickname = nickname;
         this.age = age;
         this.gender = gender;
+        this.role = Role.USER;
+        this.status = Status.PENDING;
     }
 
     public static Member register(String email, String encodedPassword, String nickname, Integer age, Gender gender) {
         return new Member(email, encodedPassword, nickname, age, gender);
+    }
+
+    public void approve() {
+        if (this.status == Status.ACTIVE) {
+            throw new IllegalStateException("이미 승인된 회원입니다.");
+        }
+        this.status = Status.ACTIVE;
     }
 
     private void validateGender(Gender gender) {
