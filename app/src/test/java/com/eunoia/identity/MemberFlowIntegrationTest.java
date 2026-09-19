@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,6 +43,9 @@ public class MemberFlowIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     //mock테스트 전용 회원가입 메서드
     private void signup(String email, String password, String nickname, int age, String gender) throws Exception {
         mockMvc.perform(post("/api/v1/members/signup")
@@ -50,6 +54,7 @@ public class MemberFlowIntegrationTest {
                         {"email":"%s","password":"%s","nickname":"%s","age":%d,"gender":"%s"}
                         """.formatted(email, password, nickname, age, gender)))
                 .andExpect(status().isOk());
+        jdbcTemplate.update("UPDATE members SET status = 'ACTIVE' WHERE email = ?", email);
     }
 
     @Test
