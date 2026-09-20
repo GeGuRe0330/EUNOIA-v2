@@ -1,5 +1,6 @@
 package com.eunoia.identity.infrastructure.security;
 
+import com.eunoia.common.security.AuthenticatedPrincipal;
 import com.eunoia.identity.domain.Member;
 import com.eunoia.identity.domain.Status;
 import org.jspecify.annotations.Nullable;
@@ -10,7 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
-public class CustomMemberDetails implements UserDetails {
+public class CustomMemberDetails implements UserDetails, AuthenticatedPrincipal {
 
     private final Member member;
 
@@ -55,5 +56,10 @@ public class CustomMemberDetails implements UserDetails {
     @Override
     public boolean isEnabled() {
         return member.getStatus() == Status.ACTIVE;
+    }
+
+    @Override
+    public Long getMemberId() {
+        return member.getId();
     }
 }
