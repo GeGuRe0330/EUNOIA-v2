@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,6 +60,19 @@ public class JournalEntryFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return (MockHttpSession) loginResult.getRequest().getSession(false);
+    }
+
+    private Long writeEntry(MockHttpSession session, String content, String entryDate) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/emotion-entries")
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"content":"%s","entryDate":"%s"}
+                        """.formatted(content, entryDate)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Number entryId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+        return entryId.longValue();
     }
 
     @Test
@@ -99,5 +113,51 @@ public class JournalEntryFlowIntegrationTest {
                         {"content":"오늘은 맑았다","entryDate":"2026-09-20"}
                         """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("본인이 작성한 감정일기를 단건 조회할 수 있다.")
+    void getById_withOwnerSession_returnsEntry() throws Exception {
+        MockHttpSession session = signupAndLogin("owner@test.com", "rawPassword1!", "본인", 20, "FEMALE");
+        Long entryId = writeEntry(session, "오늘은 맑았다", "2026-09-20");
+
+        mockMvc.perform(get("/api/v1/emotion-entries/{id}", entryId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").value("오늘은 맑았다"));
+    }
+
+    @Test
+    @DisplayName("다른 회원이 작성한 감정일기는 조회할 수 없다.")
+    void getById_withOtherMemberSession_returns403() throws Exception {
+        MockHttpSession ownerSession = signupAndLogin("owner2@test.com", "rawPassword1!", "본인2", 20, "FEMALE");
+        Long entryId = writeEntry(ownerSession, "오늘은 맑았다", "2026-09-20");
+        MockHttpSession otherSession = signupAndLogin("other@test.com", "rawPassword1!", "타인", 20, "MALE");
+
+        mockMvc.perform(get("/api/v1/emotion-entries/{id}", entryId).session(otherSession))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 감정일기를 조회하면 404를 반환한다.")
+    void getById_withNonExistentId_returns404() throws Exception {
+        MockHttpSession session = signupAndLogin("notfound@test.com", "rawPassword1!", "없음", 20, "FEMALE");
+
+        mockMvc.perform(get("/api/v1/emotion-entries/{id}", 999999L).session(session))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("목록을 조회하면 본인이 작성한 감정일기만 반환한다.")
+    void getMyEntries_returnsOnlyOwnEntries() throws Exception {
+        MockHttpSession session = signupAndLogin("list@test.com", "rawPassword1!", "목록", 20, "FEMALE");
+        writeEntry(session, "첫째 날", "2026-09-19");
+        writeEntry(session, "둘째 날", "2026-09-20");
+        MockHttpSession otherSession = signupAndLogin("otherlist@test.com", "rawPassword1!", "타인목록", 20, "MALE");
+        writeEntry(otherSession, "남의 글", "2026-09-20");
+
+        mockMvc.perform(get("/api/v1/emotion-entries").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[*].content", org.hamcrest.Matchers.containsInAnyOrder("첫째 날", "둘째 날")));
     }
 }

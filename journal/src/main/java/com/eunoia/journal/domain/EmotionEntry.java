@@ -51,4 +51,8 @@ public class EmotionEntry extends BaseEntity {
             throw new IllegalArgumentException("작성자 ID는 필수입니다.");
         }
     }
+
+    public boolean isOwnedBy(Long memberId) {
+        return this.memberId.equals(memberId);
+    }
 }

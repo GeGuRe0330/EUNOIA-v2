@@ -9,10 +9,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -29,5 +28,22 @@ public class EmotionEntryController {
             @Valid @RequestBody EmotionEntryWriteRequest request
     ) {
         return EmotionEntryResponse.from(emotionEntryService.write(request.toCommand(principal.getMemberId())));
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "감정일기 단건 조회", description = "본인이 작성한 감정일기를 단건 조회한다.")
+    public EmotionEntryResponse getById(
+            @AuthenticationPrincipal AuthenticatedPrincipal principal,
+            @PathVariable Long id
+    ) {
+        return EmotionEntryResponse.from(emotionEntryService.getById(id, principal.getMemberId()));
+    }
+
+    @GetMapping
+    @Operation(summary = "감정일기 목록 조회", description = "본인이 작성한 감정일기 목록을 최신순으로 조회한다.")
+    public List<EmotionEntryResponse> getMyEntries(@AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        return emotionEntryService.getMyEntries(principal.getMemberId()).stream()
+                .map(EmotionEntryResponse::from)
+                .toList();
     }
 }

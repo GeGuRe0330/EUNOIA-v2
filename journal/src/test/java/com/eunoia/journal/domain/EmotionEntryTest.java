@@ -50,4 +50,20 @@ class EmotionEntryTest {
         assertThat(entry.getContent()).isEqualTo("오늘 하루");
         assertThat(entry.getEntryDate()).isEqualTo(entryDate);
     }
+
+    @Test
+    @DisplayName("작성자 ID가 일치하면 소유자로 판단한다.")
+    void isOwnedBy_withMatchingMemberId_returnsTrue() {
+        EmotionEntry entry = EmotionEntry.write(1L, "오늘 하루", LocalDate.now());
+
+        assertThat(entry.isOwnedBy(1L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("작성자 ID가 다르면 소유자가 아니라고 판단한다.")
+    void isOwnedBy_withDifferentMemberId_returnsFalse() {
+        EmotionEntry entry = EmotionEntry.write(1L, "오늘 하루", LocalDate.now());
+
+        assertThat(entry.isOwnedBy(2L)).isFalse();
+    }
 }
