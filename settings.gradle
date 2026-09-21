@@ -1,6 +1,7 @@
 rootProject.name = 'eunoia'
 
 include 'common'
+include 'completion'
 include 'identity'
 include 'journal'
 include 'analysis'
