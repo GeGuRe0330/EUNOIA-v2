@@ -20,6 +20,11 @@ spring:
     openai:
       api-key: ${OPENAI_API_KEY:}
 
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: true
+      completion-mode: DELETE
+
 app:
   cors:
     allowed-origins: http://localhost:5173

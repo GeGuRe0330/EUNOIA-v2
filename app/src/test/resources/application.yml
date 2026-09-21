@@ -10,8 +10,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
-  # analysis 모듈의 Spring AI(OpenAI) 자동 설정이 컨텍스트 부팅 시 자격 증명 존재 여부를 검증한다 —
+  # completion 모듈의 Spring AI(OpenAI) 자동 설정이 컨텍스트 부팅 시 자격 증명 존재 여부를 검증한다 —
   # 이 브랜치는 OpenAI를 실제로 호출하지 않으므로, 운영 값과 무관한 더미 값만 채워 부팅을 통과시킨다.
   ai:
     openai:
       api-key: test-key
+
+  modulith:
+    events:
+      completion-mode: DELETE
