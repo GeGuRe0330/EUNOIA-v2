@@ -19,7 +19,7 @@ public record EmotionAnalysisResponse(
         List<String> warmMessages
 ) {
 
-    private static final String FAILURE_REASON = "잠시 후에 다시 시도해주세요.";
+    private static final String FAILURE_REASON = "감정 분석에 실패했어요.";
 
     public static EmotionAnalysisResponse from(EmotionAnalysisInfo info) {
         return new EmotionAnalysisResponse(

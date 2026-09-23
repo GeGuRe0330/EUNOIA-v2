@@ -18,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmotionAnalysisService {
 
     private static final int MAX_VALIDATION_ATTEMPTS = 3;
+    private static final String UNKNOWN_FAILURE_REASON = "원인 불명";
+    // EmotionAnalysis.failureReason 컬럼 길이(length = 1000)와 반드시 맞춰야 함
+    private static final int MAX_FAILURE_REASON_LENGTH = 1000;
 
     private final EmotionAnalysisRepository emotionAnalysisRepository;
     private final EmotionAnalyzer emotionAnalyzer;
@@ -33,8 +36,14 @@ public class EmotionAnalysisService {
 
     private EmotionAnalysis analyze(EmotionEntryRecorded event) {
         for (int attempt = 1; attempt <= MAX_VALIDATION_ATTEMPTS; attempt++) {
+            EmotionAnalysisResult result;
             try {
-                EmotionAnalysisResult result = emotionAnalyzer.analyze(event.content());
+                result = emotionAnalyzer.analyze(event.content());
+            } catch (RuntimeException e) {
+                return failedAnalysis(event, e);
+            }
+
+            try {
                 return EmotionAnalysis.create(
                         event.entryId(), event.memberId(), event.entryDate(),
                         result.emotionDetected(), result.keywords(), result.insightSummary(), result.flowHint(),
@@ -42,13 +51,21 @@ public class EmotionAnalysisService {
                         result.entryClarityReason(), result.warmMessages());
             } catch (IllegalArgumentException e) {
                 if (attempt == MAX_VALIDATION_ATTEMPTS) {
-                    return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), e.getMessage());
+                    return failedAnalysis(event, e);
                 }
-            } catch (RuntimeException e) {
-                return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), e.getMessage());
             }
         }
         throw new IllegalStateException("도달할 수 없는 상태입니다.");
+    }
+
+    private EmotionAnalysis failedAnalysis(EmotionEntryRecorded event, Exception e) {
+        String reason = e.getMessage();
+        if (reason == null || reason.isBlank()) {
+            reason = UNKNOWN_FAILURE_REASON;
+        } else if (reason.length() > MAX_FAILURE_REASON_LENGTH) {
+            reason = reason.substring(0, MAX_FAILURE_REASON_LENGTH);
+        }
+        return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), reason);
     }
 
     @Transactional(readOnly = true)
