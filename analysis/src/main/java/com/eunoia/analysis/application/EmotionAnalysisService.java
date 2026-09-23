@@ -17,6 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EmotionAnalysisService {
 
+    private static final int MAX_VALIDATION_ATTEMPTS = 3;
+    private static final String UNKNOWN_FAILURE_REASON = "원인 불명";
+    // EmotionAnalysis.failureReason 컬럼 길이(length = 1000)와 반드시 맞춰야 함
+    private static final int MAX_FAILURE_REASON_LENGTH = 1000;
+
     private final EmotionAnalysisRepository emotionAnalysisRepository;
     private final EmotionAnalyzer emotionAnalyzer;
 
@@ -26,14 +31,41 @@ public class EmotionAnalysisService {
             return;
         }
 
-        EmotionAnalysisResult result = emotionAnalyzer.analyze(event.content());
+        emotionAnalysisRepository.save(analyze(event));
+    }
 
-        EmotionAnalysis analysis = EmotionAnalysis.create(
-                event.entryId(), event.memberId(),
-                result.emotionDetected(), result.keywords(), result.insightSummary(), result.flowHint(),
-                result.emotionSummary(), result.emotionScore(), result.entryClarityScore(),
-                result.entryClarityReason(), result.warmMessages());
-        emotionAnalysisRepository.save(analysis);
+    private EmotionAnalysis analyze(EmotionEntryRecorded event) {
+        for (int attempt = 1; attempt <= MAX_VALIDATION_ATTEMPTS; attempt++) {
+            EmotionAnalysisResult result;
+            try {
+                result = emotionAnalyzer.analyze(event.content());
+            } catch (RuntimeException e) {
+                return failedAnalysis(event, e);
+            }
+
+            try {
+                return EmotionAnalysis.create(
+                        event.entryId(), event.memberId(), event.entryDate(),
+                        result.emotionDetected(), result.keywords(), result.insightSummary(), result.flowHint(),
+                        result.emotionSummary(), result.emotionScore(), result.entryClarityScore(),
+                        result.entryClarityReason(), result.warmMessages());
+            } catch (IllegalArgumentException e) {
+                if (attempt == MAX_VALIDATION_ATTEMPTS) {
+                    return failedAnalysis(event, e);
+                }
+            }
+        }
+        throw new IllegalStateException("도달할 수 없는 상태입니다.");
+    }
+
+    private EmotionAnalysis failedAnalysis(EmotionEntryRecorded event, Exception e) {
+        String reason = e.getMessage();
+        if (reason == null || reason.isBlank()) {
+            reason = UNKNOWN_FAILURE_REASON;
+        } else if (reason.length() > MAX_FAILURE_REASON_LENGTH) {
+            reason = reason.substring(0, MAX_FAILURE_REASON_LENGTH);
+        }
+        return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), reason);
     }
 
     @Transactional(readOnly = true)

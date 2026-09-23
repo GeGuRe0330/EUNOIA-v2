@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -112,6 +113,26 @@ public class EmotionAnalysisFlowIntegrationTest {
                 .andExpect(jsonPath("$.data.entryId").value(entryId))
                 .andExpect(jsonPath("$.data.emotionDetected").value("평온"))
                 .andExpect(jsonPath("$.data.warmMessages.length()").value(3));
+    }
+
+    @Test
+    @DisplayName("GPT 호출이 실패하면 FAILED 상태로 저장되고, 조회 시 고정 문구로 응답하며 내부 예외 메시지는 노출되지 않는다.")
+    void writeEntry_whenAnalysisFails_returnsFailedStatusWithFixedReason() throws Exception {
+        when(structuredPromptClient.call(anyString(), any()))
+                .thenThrow(new RuntimeException("내부 예외 상세 메시지"));
+
+        MockHttpSession session = signupAndLogin("failure@test.com", "rawPassword1!", "실패러", 20, "FEMALE");
+        Long entryId = writeEntry(session, "오늘은 흐렸다", "2026-09-20");
+
+        waitForAnalysisReady(session, entryId);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.reason").value("감정 분석에 실패했어요."))
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("내부 예외 상세 메시지");
     }
 
     @Test

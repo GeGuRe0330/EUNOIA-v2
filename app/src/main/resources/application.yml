@@ -19,6 +19,8 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
+      timeout: 30s
+      max-retries: 1
 
   modulith:
     events:
