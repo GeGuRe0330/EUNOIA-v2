@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Entity
@@ -25,6 +26,13 @@ public class EmotionAnalysis extends BaseEntity {
 
     @Column(nullable = false)
     private Long memberId;
+
+    @Column(nullable = false)
+    private LocalDate entryDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AnalysisStatus status;
 
     private String emotionDetected;
 
@@ -50,12 +58,16 @@ public class EmotionAnalysis extends BaseEntity {
     @Column(name = "warm_messages")
     private List<String> warmMessages;
 
-    private EmotionAnalysis(Long entryId, Long memberId, String emotionDetected, String keywords,
+    @Column(length = 1000)
+    private String failureReason;
+
+    private EmotionAnalysis(Long entryId, Long memberId, LocalDate entryDate, String emotionDetected, String keywords,
                             String insightSummary, String flowHint, String emotionSummary,
                             Double emotionScore, Integer entryClarityScore, String entryClarityReason,
                             List<String> warmMessages) {
         validateEntryId(entryId);
         validateMemberId(memberId);
+        validateEntryDate(entryDate);
         validateEmotionDetected(emotionDetected);
         validateEmotionScore(emotionScore);
         validateEntryClarityScore(entryClarityScore);
@@ -63,6 +75,8 @@ public class EmotionAnalysis extends BaseEntity {
 
         this.entryId = entryId;
         this.memberId = memberId;
+        this.entryDate = entryDate;
+        this.status = AnalysisStatus.SUCCESS;
         this.emotionDetected = emotionDetected;
         this.keywords = keywords;
         this.insightSummary = insightSummary;
@@ -74,13 +88,30 @@ public class EmotionAnalysis extends BaseEntity {
         this.warmMessages = warmMessages;
     }
 
-    public static EmotionAnalysis create(Long entryId, Long memberId, String emotionDetected, String keywords,
+    private EmotionAnalysis(Long entryId, Long memberId, LocalDate entryDate, String failureReason) {
+        validateEntryId(entryId);
+        validateMemberId(memberId);
+        validateEntryDate(entryDate);
+        validateFailureReason(failureReason);
+
+        this.entryId = entryId;
+        this.memberId = memberId;
+        this.entryDate = entryDate;
+        this.status = AnalysisStatus.FAILED;
+        this.failureReason = failureReason;
+    }
+
+    public static EmotionAnalysis create(Long entryId, Long memberId, LocalDate entryDate, String emotionDetected, String keywords,
                                          String insightSummary, String flowHint, String emotionSummary,
                                          Double emotionScore, Integer entryClarityScore, String entryClarityReason,
                                          List<String> warmMessages) {
 
-        return new EmotionAnalysis(entryId, memberId, emotionDetected, keywords, insightSummary, flowHint,
+        return new EmotionAnalysis(entryId, memberId, entryDate, emotionDetected, keywords, insightSummary, flowHint,
                 emotionSummary, emotionScore, entryClarityScore, entryClarityReason, warmMessages);
+    }
+
+    public static EmotionAnalysis fail(Long entryId, Long memberId, LocalDate entryDate, String failureReason) {
+        return new  EmotionAnalysis(entryId, memberId, entryDate, failureReason);
     }
 
     private void validateMemberId(Long memberId) {
@@ -92,6 +123,18 @@ public class EmotionAnalysis extends BaseEntity {
     private void validateEntryId(Long entryId) {
         if (entryId == null) {
             throw new IllegalArgumentException("entryId는 필수입니다.");
+        }
+    }
+
+    private void validateEntryDate(LocalDate entryDate) {
+        if (entryDate == null) {
+            throw new IllegalArgumentException("entryDate는 필수입니다.");
+        }
+    }
+
+    private void validateFailureReason(String failureReason) {
+        if (failureReason == null ||  failureReason.isBlank()) {
+            throw new IllegalArgumentException("failureReason은 필수입니다.");
         }
     }
 

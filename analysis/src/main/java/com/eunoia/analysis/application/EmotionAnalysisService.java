@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EmotionAnalysisService {
 
+    private static final int MAX_VALIDATION_ATTEMPTS = 3;
+
     private final EmotionAnalysisRepository emotionAnalysisRepository;
     private final EmotionAnalyzer emotionAnalyzer;
 
@@ -26,14 +28,27 @@ public class EmotionAnalysisService {
             return;
         }
 
-        EmotionAnalysisResult result = emotionAnalyzer.analyze(event.content());
+        emotionAnalysisRepository.save(analyze(event));
+    }
 
-        EmotionAnalysis analysis = EmotionAnalysis.create(
-                event.entryId(), event.memberId(),
-                result.emotionDetected(), result.keywords(), result.insightSummary(), result.flowHint(),
-                result.emotionSummary(), result.emotionScore(), result.entryClarityScore(),
-                result.entryClarityReason(), result.warmMessages());
-        emotionAnalysisRepository.save(analysis);
+    private EmotionAnalysis analyze(EmotionEntryRecorded event) {
+        for (int attempt = 1; attempt <= MAX_VALIDATION_ATTEMPTS; attempt++) {
+            try {
+                EmotionAnalysisResult result = emotionAnalyzer.analyze(event.content());
+                return EmotionAnalysis.create(
+                        event.entryId(), event.memberId(), event.entryDate(),
+                        result.emotionDetected(), result.keywords(), result.insightSummary(), result.flowHint(),
+                        result.emotionSummary(), result.emotionScore(), result.entryClarityScore(),
+                        result.entryClarityReason(), result.warmMessages());
+            } catch (IllegalArgumentException e) {
+                if (attempt == MAX_VALIDATION_ATTEMPTS) {
+                    return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), e.getMessage());
+                }
+            } catch (RuntimeException e) {
+                return EmotionAnalysis.fail(event.entryId(), event.memberId(), event.entryDate(), e.getMessage());
+            }
+        }
+        throw new IllegalStateException("도달할 수 없는 상태입니다.");
     }
 
     @Transactional(readOnly = true)
