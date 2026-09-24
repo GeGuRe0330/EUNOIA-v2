@@ -9,6 +9,6 @@ public interface EmotionAnalysisRepository {
 
     Optional<EmotionAnalysis> findByEntryId(Long entryId);
 
-    List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatus(Long memberId, LocalDate startDate,
-                                                                     LocalDate endDate, AnalysisStatus status);
+    List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc
+            (Long memberId, LocalDate startDate, LocalDate endDate, AnalysisStatus status);
 }

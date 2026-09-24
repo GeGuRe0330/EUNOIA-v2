@@ -20,7 +20,9 @@ public class EmotionAnalysisQueryService implements EmotionAnalysisQueryApi {
     @Override
     @Transactional(readOnly = true)
     public List<EmotionAnalysisCandidate> findSuccessfulAnalyses(Long memberId, LocalDate startDate, LocalDate endDate) {
-        return emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatus(
+        validateQueryParameters(memberId, startDate, endDate);
+
+        return emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc(
                 memberId, startDate, endDate, AnalysisStatus.SUCCESS)
                 .stream()
                 .map(analysis -> new EmotionAnalysisCandidate(
@@ -29,5 +31,17 @@ public class EmotionAnalysisQueryService implements EmotionAnalysisQueryApi {
                         analysis.getEntryClarityScore(),
                         analysis.getEntryClarityReason()))
                 .toList();
+    }
+
+    private void validateQueryParameters(Long memberId, LocalDate startDate, LocalDate endDate) {
+        if (memberId == null) {
+            throw new IllegalArgumentException("memberId는 필수입니다.");
+        }
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("조회 기간은 필수입니다.");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate는 endDate보다 이후일 수 없습니다.");
+        }
     }
 }

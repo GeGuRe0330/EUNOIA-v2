@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,7 +40,7 @@ class EmotionAnalysisQueryServiceTest {
         EmotionAnalysis analysis = EmotionAnalysis.create(1L, 2L, LocalDate.of(2026, 9, 20), "평온", "평온,안정",
                 "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
 
-        when(emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatus(
+        when(emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc(
                 2L, START_DATE, END_DATE, AnalysisStatus.SUCCESS))
                 .thenReturn(List.of(analysis));
 
@@ -57,7 +58,7 @@ class EmotionAnalysisQueryServiceTest {
     @Test
     @DisplayName("해당 기간에 SUCCESS 분석이 없으면 빈 리스트를 반환한다.")
     void findSuccessfulAnalyses_withNoResults_returnsEmptyList() {
-        when(emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatus(
+        when(emotionAnalysisRepository.findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc(
                 2L, START_DATE, END_DATE, AnalysisStatus.SUCCESS))
                 .thenReturn(List.of());
 
@@ -65,5 +66,33 @@ class EmotionAnalysisQueryServiceTest {
                 emotionAnalysisQueryService.findSuccessfulAnalyses(2L, START_DATE, END_DATE);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("memberId가 null이면 조회할 수 없다.")
+    void findSuccessfulAnalyses_withNullMemberId_throws() {
+        assertThatThrownBy(() -> emotionAnalysisQueryService.findSuccessfulAnalyses(null, START_DATE, END_DATE))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("startDate가 null이면 조회할 수 없다.")
+    void findSuccessfulAnalyses_withNullStartDate_throws() {
+        assertThatThrownBy(() -> emotionAnalysisQueryService.findSuccessfulAnalyses(2L, null, END_DATE))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("endDate가 null이면 조회할 수 없다.")
+    void findSuccessfulAnalyses_withNullEndDate_throws() {
+        assertThatThrownBy(() -> emotionAnalysisQueryService.findSuccessfulAnalyses(2L, START_DATE, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("startDate가 endDate보다 이후면 조회할 수 없다.")
+    void findSuccessfulAnalyses_withStartDateAfterEndDate_throws() {
+        assertThatThrownBy(() -> emotionAnalysisQueryService.findSuccessfulAnalyses(2L, END_DATE, START_DATE))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -11,6 +11,6 @@ import java.util.Optional;
 public interface EmotionAnalysisJpaRepository extends JpaRepository<EmotionAnalysis, Long> {
     Optional<EmotionAnalysis> findByEntryId(Long entryId);
 
-    List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatus(Long memberId, LocalDate startDate,
-                                                                     LocalDate endDate, AnalysisStatus status);
+    List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc
+            (Long memberId, LocalDate startDate, LocalDate endDate, AnalysisStatus status);
 }
