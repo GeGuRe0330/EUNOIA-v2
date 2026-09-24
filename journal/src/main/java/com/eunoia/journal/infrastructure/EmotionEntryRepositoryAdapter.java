@@ -28,4 +28,9 @@ public class EmotionEntryRepositoryAdapter implements EmotionEntryRepository {
     public List<EmotionEntry> findByMemberIdOrderByEntryDateDesc(Long memberId) {
         return jpaRepository.findByMemberIdOrderByEntryDateDesc(memberId);
     }
+
+    @Override
+    public List<EmotionEntry> findByIdIn(List<Long> entryIds) {
+        return jpaRepository.findAllById(entryIds);
+    }
 }

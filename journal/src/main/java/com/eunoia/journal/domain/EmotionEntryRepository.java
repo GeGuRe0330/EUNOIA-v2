@@ -9,4 +9,6 @@ public interface EmotionEntryRepository {
     Optional<EmotionEntry> findById(Long id);
 
     List<EmotionEntry> findByMemberIdOrderByEntryDateDesc(Long memberId );
+
+    List<EmotionEntry> findByIdIn(List<Long> entryIds);
 }
