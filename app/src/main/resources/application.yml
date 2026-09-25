@@ -27,9 +27,12 @@ spring:
       republish-outstanding-events-on-restart: true
       completion-mode: DELETE
 
-app:
-  cors:
-    allowed-origins: http://localhost:5173
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+        secure: true
 
 logging:
   level:

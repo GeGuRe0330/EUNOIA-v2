@@ -27,6 +27,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test' // MockMvc/@AutoConfigureMockMvc
     testImplementation 'org.springframework.boot:spring-boot-starter-security' // PasswordEncoder — identity가 implementation으로만 선언해 전파 안 됨
+    testImplementation 'org.springframework.security:spring-security-test' // MockMvc CSRF 테스트 지원(csrf()) — 위와 동일한 이유로 identity에서 전파 안 됨
     testImplementation 'org.springframework.boot:spring-boot-starter-jdbc' // JdbcTemplate(관리자 승인 통합 테스트의 ADMIN 계정 수동 승격용) — 위와 동일한 이유로 identity에서 전파 안 됨
     testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
     testImplementation 'org.springframework.modulith:spring-modulith-docs' // 모듈 다이어그램 생성용(포트폴리오 목적)
