@@ -85,7 +85,7 @@ public class EmotionAnalysisFlowIntegrationTest {
     private void waitForAnalysisReady(MockHttpSession session, Long entryId) throws Exception {
         long deadline = System.currentTimeMillis() + 5000;
         while (System.currentTimeMillis() < deadline) {
-            MvcResult result = mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(session))
+            MvcResult result = mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                     .andReturn();
             if (result.getResponse().getStatus() == 200) {
                 return;
@@ -108,7 +108,7 @@ public class EmotionAnalysisFlowIntegrationTest {
 
         waitForAnalysisReady(session, entryId);
 
-        mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(session))
+        mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entryId").value(entryId))
                 .andExpect(jsonPath("$.data.emotionDetected").value("평온"))
@@ -126,7 +126,7 @@ public class EmotionAnalysisFlowIntegrationTest {
 
         waitForAnalysisReady(session, entryId);
 
-        MvcResult result = mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(session))
+        MvcResult result = mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("FAILED"))
                 .andExpect(jsonPath("$.data.reason").value("감정 분석에 실패했어요."))
@@ -149,7 +149,7 @@ public class EmotionAnalysisFlowIntegrationTest {
 
         MockHttpSession otherSession = signupAndLogin("other3@test.com", "rawPassword1!", "타인3", 20, "MALE");
 
-        mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(otherSession))
+        mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(otherSession))
                 .andExpect(status().isForbidden());
     }
 
@@ -158,7 +158,116 @@ public class EmotionAnalysisFlowIntegrationTest {
     void getByEntryId_withNonExistentEntryId_returns404() throws Exception {
         MockHttpSession session = signupAndLogin("notfound3@test.com", "rawPassword1!", "없음3", 20, "FEMALE");
 
-        mockMvc.perform(get("/api/v1/analyses/{entryId}", 999999L).session(session))
+        mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", 999999L).session(session))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("분석 결과가 하나도 없으면 최신 분석 조회는 200과 함께 data: null을 반환한다.")
+    void getLatest_withNoAnalyses_returnsOkWithNullData() throws Exception {
+        MockHttpSession session = signupAndLogin("nolatest@test.com", "rawPassword1!", "무기록", 20, "FEMALE");
+
+        mockMvc.perform(get("/api/v1/analyses/latest").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("entryDate가 가장 최근인 일기의 분석을 최신 분석으로 조회한다(처리/생성 순서와 무관).")
+    void getLatest_withMultipleAnalyses_returnsMostRecentEntryDate() throws Exception {
+        EmotionAnalysisResult stub = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+        when(structuredPromptClient.call(anyString(), any())).thenReturn(stub);
+
+        MockHttpSession session = signupAndLogin("latest@test.com", "rawPassword1!", "최신러", 20, "FEMALE");
+        // 먼저 작성(=먼저 처리 완료)했지만 entryDate는 더 최근인 일기
+        Long earlierWrittenButLaterDateId = writeEntry(session, "먼저 작성, 날짜는 더 최근", "2026-09-20");
+        waitForAnalysisReady(session, earlierWrittenButLaterDateId);
+        // 나중에 작성(=나중에 처리 완료)했지만 entryDate는 더 과거인 일기
+        Long laterWrittenButEarlierDateId = writeEntry(session, "나중 작성, 날짜는 더 과거", "2026-09-10");
+        waitForAnalysisReady(session, laterWrittenButEarlierDateId);
+
+        mockMvc.perform(get("/api/v1/analyses/latest").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryId").value(earlierWrittenButLaterDateId));
+    }
+
+    @Test
+    @DisplayName("가장 최근 entryDate의 일기 분석이 FAILED여도 최신 분석 조회에 그대로 노출된다.")
+    void getLatest_withMostRecentEntryFailed_returnsFailedStatus() throws Exception {
+        EmotionAnalysisResult stub = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+        when(structuredPromptClient.call(anyString(), any()))
+                .thenReturn(stub)
+                .thenThrow(new RuntimeException("GPT 호출 실패"));
+
+        MockHttpSession session = signupAndLogin("latestfailed@test.com", "rawPassword1!", "실패최신러", 20, "FEMALE");
+        Long earlierEntryId = writeEntry(session, "먼저 일기(성공)", "2026-09-10");
+        waitForAnalysisReady(session, earlierEntryId);
+        Long laterEntryId = writeEntry(session, "나중 일기(실패)", "2026-09-20");
+        waitForAnalysisReady(session, laterEntryId);
+
+        mockMvc.perform(get("/api/v1/analyses/latest").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryId").value(laterEntryId))
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.reason").value("감정 분석에 실패했어요."));
+    }
+
+    @Test
+    @DisplayName("감정 점수 목록을 entryDate 오름차순으로 조회한다.")
+    void getScores_withMultipleAnalyses_returnsAscendingByEntryDate() throws Exception {
+        EmotionAnalysisResult stub = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+        when(structuredPromptClient.call(anyString(), any())).thenReturn(stub);
+
+        MockHttpSession session = signupAndLogin("scores@test.com", "rawPassword1!", "점수러", 20, "FEMALE");
+        Long laterEntryId = writeEntry(session, "나중 일기", "2026-09-20");
+        waitForAnalysisReady(session, laterEntryId);
+        Long earlierEntryId = writeEntry(session, "먼저 일기", "2026-09-10");
+        waitForAnalysisReady(session, earlierEntryId);
+
+        mockMvc.perform(get("/api/v1/analyses/scores").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].entryId").value(earlierEntryId))
+                .andExpect(jsonPath("$.data[0].entryDate").value("2026-09-10"))
+                .andExpect(jsonPath("$.data[1].entryId").value(laterEntryId))
+                .andExpect(jsonPath("$.data[1].entryDate").value("2026-09-20"));
+    }
+
+    @Test
+    @DisplayName("FAILED 상태 분석은 감정 점수 목록에서 제외된다.")
+    void getScores_withFailedAnalysis_excludesFailedFromList() throws Exception {
+        EmotionAnalysisResult stub = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+        when(structuredPromptClient.call(anyString(), any()))
+                .thenReturn(stub)
+                .thenThrow(new RuntimeException("GPT 호출 실패"));
+
+        MockHttpSession session = signupAndLogin("scoresfailed@test.com", "rawPassword1!", "점수실패러", 20, "FEMALE");
+        Long successEntryId = writeEntry(session, "성공 일기", "2026-09-10");
+        waitForAnalysisReady(session, successEntryId);
+        Long failedEntryId = writeEntry(session, "실패 일기", "2026-09-20");
+        waitForAnalysisReady(session, failedEntryId);
+
+        mockMvc.perform(get("/api/v1/analyses/scores").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].entryId").value(successEntryId));
+    }
+
+    @Test
+    @DisplayName("분석이 하나도 없으면 감정 점수 목록은 빈 배열을 반환한다.")
+    void getScores_withNoAnalyses_returnsEmptyList() throws Exception {
+        MockHttpSession session = signupAndLogin("noscores@test.com", "rawPassword1!", "무점수", 20, "FEMALE");
+
+        mockMvc.perform(get("/api/v1/analyses/scores").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 }

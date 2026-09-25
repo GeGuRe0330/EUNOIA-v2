@@ -86,7 +86,7 @@ public class MetaAnalysisFlowIntegrationTest {
     private void waitForAnalysisReady(MockHttpSession session, Long entryId) throws Exception {
         long deadline = System.currentTimeMillis() + 5000;
         while (System.currentTimeMillis() < deadline) {
-            MvcResult result = mockMvc.perform(get("/api/v1/analyses/{entryId}", entryId).session(session))
+            MvcResult result = mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                     .andReturn();
             if (result.getResponse().getStatus() == 200) {
                 return;

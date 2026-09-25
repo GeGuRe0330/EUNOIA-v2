@@ -1,6 +1,7 @@
 package com.eunoia.analysis.application;
 
 import com.eunoia.analysis.application.dto.EmotionAnalysisInfo;
+import com.eunoia.analysis.application.dto.EmotionScorePoint;
 import com.eunoia.analysis.domain.AnalysisStatus;
 import com.eunoia.analysis.domain.EmotionAnalysis;
 import com.eunoia.analysis.domain.EmotionAnalysisRepository;
@@ -17,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -175,5 +177,59 @@ class EmotionAnalysisServiceTest {
         assertThat(result.status()).isEqualTo(AnalysisStatus.SUCCESS);
         assertThat(result.emotionDetected()).isEqualTo("평온");
         assertThat(result.warmMessages()).containsExactly("문장1", "문장2", "문장3");
+    }
+
+    @Test
+    @DisplayName("최신 분석이 존재하면 반환한다.")
+    void getLatest_withExistingAnalysis_returnsInfo() {
+        EmotionAnalysis analysis = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+        when(emotionAnalysisRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(2L)).thenReturn(Optional.of(analysis));
+
+        Optional<EmotionAnalysisInfo> result = emotionAnalysisService.getLatest(2L);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().entryId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("분석이 하나도 없으면 최신 분석 조회는 빈 값을 반환한다.")
+    void getLatest_withNoAnalyses_returnsEmpty() {
+        when(emotionAnalysisRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(2L)).thenReturn(Optional.empty());
+
+        Optional<EmotionAnalysisInfo> result = emotionAnalysisService.getLatest(2L);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("감정 점수 목록은 SUCCESS 상태만, entryDate 오름차순으로 조회한다.")
+    void getScores_returnsAscendingByEntryDate() {
+        EmotionAnalysis later = EmotionAnalysis.create(1L, 2L, LocalDate.of(2026, 9, 20), "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+        EmotionAnalysis earlier = EmotionAnalysis.create(2L, 2L, LocalDate.of(2026, 9, 10), "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 60.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+        // 리포지토리는 entryDate 내림차순으로 반환(신규 메서드 이름 그대로) — 서비스가 오름차순으로 뒤집어야 함
+        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(2L, AnalysisStatus.SUCCESS))
+                .thenReturn(new ArrayList<>(List.of(later, earlier)));
+
+        List<EmotionScorePoint> result = emotionAnalysisService.getScores(2L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).entryId()).isEqualTo(2L);
+        assertThat(result.get(0).entryDate()).isEqualTo(LocalDate.of(2026, 9, 10));
+        assertThat(result.get(1).entryId()).isEqualTo(1L);
+        assertThat(result.get(1).entryDate()).isEqualTo(LocalDate.of(2026, 9, 20));
+    }
+
+    @Test
+    @DisplayName("분석이 하나도 없으면 감정 점수 목록은 빈 리스트를 반환한다.")
+    void getScores_withNoAnalyses_returnsEmptyList() {
+        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(2L, AnalysisStatus.SUCCESS))
+                .thenReturn(new ArrayList<>());
+
+        List<EmotionScorePoint> result = emotionAnalysisService.getScores(2L);
+
+        assertThat(result).isEmpty();
     }
 }

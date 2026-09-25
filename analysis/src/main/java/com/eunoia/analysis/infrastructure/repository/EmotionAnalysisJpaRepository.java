@@ -13,4 +13,8 @@ public interface EmotionAnalysisJpaRepository extends JpaRepository<EmotionAnaly
 
     List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc
             (Long memberId, LocalDate startDate, LocalDate endDate, AnalysisStatus status);
+
+    Optional<EmotionAnalysis> findTopByMemberIdOrderByEntryDateDescEntryIdDesc(Long memberId);
+
+    List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(Long memberId, AnalysisStatus status);
 }
