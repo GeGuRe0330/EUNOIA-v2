@@ -136,6 +136,11 @@ public class MetaAnalysisFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("READY"))
                 .andExpect(jsonPath("$.data.content.outer.summary").value("겉모습 요약"));
+
+        mockMvc.perform(get("/api/v1/meta-analyses").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].content.outer.summary").value("겉모습 요약"));
     }
 
     @Test

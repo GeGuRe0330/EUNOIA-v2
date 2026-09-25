@@ -2,11 +2,11 @@ package com.eunoia.insight.application;
 
 import com.eunoia.analysis.query.EmotionAnalysisCandidate;
 import com.eunoia.analysis.query.EmotionAnalysisQueryApi;
+import com.eunoia.insight.application.dto.MetaAnalysisHistoryItem;
 import com.eunoia.insight.application.dto.MetaAnalysisInfo;
 import com.eunoia.insight.domain.MetaAnalysisAiResponse;
 import com.eunoia.insight.domain.MetaAnalysisAnalyzer;
 import com.eunoia.insight.domain.MetaAnalysisContent;
-import com.eunoia.insight.domain.MetaAnalysisInput;
 import com.eunoia.insight.domain.MetaAnalysisResult;
 import com.eunoia.insight.domain.MetaAnalysisResultRepository;
 import com.eunoia.insight.domain.MetaAnalysisStatus;
@@ -158,8 +158,8 @@ class MetaAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("journal이 일부 entry만 반환해도 예외 없이 진행하고, 누락된 자리는 null로 GPT에 전달한다.")
-    void generate_withPartialJournalResponse_passesNullForMissingContent() {
+    @DisplayName("journal이 일부 entry만 반환하면(모듈 간 정합성 깨짐) GPT를 호출하지 않고 즉시 실패한다.")
+    void generate_withPartialJournalResponse_failsFastWithoutCallingAnalyzer() {
         List<EmotionAnalysisCandidate> selected = tenCandidates();
         when(analysisQueryApi.findSuccessfulAnalyses(any(), any(), any())).thenReturn(selected);
         when(candidateSelector.select(any())).thenReturn(new MetaAnalysisSelection(selected, 2));
@@ -167,16 +167,28 @@ class MetaAnalysisServiceTest {
         when(regenerationGuard.isUnchanged(any(), anyInt(), any())).thenReturn(false);
         when(journalQueryApi.findContentsByEntryIds(eq(1L), any()))
                 .thenReturn(List.of(new EmotionEntryContent(selected.get(0).entryId(), "내용")));
-        ArgumentCaptor<MetaAnalysisInput> captor = ArgumentCaptor.forClass(MetaAnalysisInput.class);
-        when(analyzer.analyze(captor.capture())).thenReturn(stubAiResponse());
-        when(metaAnalysisResultRepository.findByMemberIdAndPeriodEnd(any(), any())).thenReturn(Optional.empty());
-        when(metaAnalysisResultRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        metaAnalysisService.generate(1L);
+        assertThatThrownBy(() -> metaAnalysisService.generate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("entryId=");
 
-        List<String> entryContents = captor.getValue().entryContents();
-        assertThat(entryContents.get(0)).isEqualTo("내용");
-        assertThat(entryContents.subList(1, entryContents.size())).containsOnlyNulls();
+        verifyNoInteractions(analyzer);
+        verify(metaAnalysisResultRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("과거 메타분석 결과를 최신순으로 조회한다.")
+    void getHistory_returnsResultsOrderedByRepository() {
+        MetaAnalysisResult older = existingResult(tenCandidates(), 1);
+        MetaAnalysisResult newer = existingResult(tenCandidates(), 3);
+        when(metaAnalysisResultRepository.findAllByMemberIdOrderByPeriodEndDesc(1L))
+                .thenReturn(List.of(newer, older));
+
+        List<MetaAnalysisHistoryItem> result = metaAnalysisService.getHistory(1L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).excludedEntryCount()).isEqualTo(3);
+        assertThat(result.get(1).excludedEntryCount()).isEqualTo(1);
     }
 
     @Test

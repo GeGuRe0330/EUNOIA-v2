@@ -2,6 +2,7 @@ package com.eunoia.insight.application;
 
 import com.eunoia.analysis.query.EmotionAnalysisCandidate;
 import com.eunoia.analysis.query.EmotionAnalysisQueryApi;
+import com.eunoia.insight.application.dto.MetaAnalysisHistoryItem;
 import com.eunoia.insight.application.dto.MetaAnalysisInfo;
 import com.eunoia.insight.domain.MetaAnalysisAiResponse;
 import com.eunoia.insight.domain.MetaAnalysisAnalyzer;
@@ -91,7 +92,9 @@ public class MetaAnalysisService {
                 .collect(Collectors.toMap(EmotionEntryContent::entryId, EmotionEntryContent::content));
 
         List<String> entryContents = selected.stream()
-                .map(candidate -> contentsByEntryId.get(candidate.entryId()))
+                .map(candidate -> Optional.ofNullable(contentsByEntryId.get(candidate.entryId()))
+                        .orElseThrow(() -> new IllegalStateException(
+                                "선택된 일기의 원문을 찾을 수 없습니다. entryId=" + candidate.entryId())))
                 .toList();
 
         int clarityScoreAverage = calculateClarityScoreAverage(selected);
@@ -136,5 +139,12 @@ public class MetaAnalysisService {
                 })
                 .orElseGet(() -> metaAnalysisResultRepository.save(
                         MetaAnalysisResult.create(memberId, periodStart, periodEnd, basedOnCount, excludedEntryCount, content)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MetaAnalysisHistoryItem> getHistory(Long memberId) {
+        return metaAnalysisResultRepository.findAllByMemberIdOrderByPeriodEndDesc(memberId).stream()
+                .map(MetaAnalysisHistoryItem::from)
+                .toList();
     }
 }

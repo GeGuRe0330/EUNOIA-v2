@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -27,5 +28,10 @@ public class MetaAnalysisResultRepositoryAdapter implements MetaAnalysisResultRe
     @Override
     public Optional<MetaAnalysisResult> findByMemberIdAndPeriodEnd(Long memberId, LocalDate periodEnd) {
         return jpaRepository.findByMemberIdAndPeriodEnd(memberId, periodEnd);
+    }
+
+    @Override
+    public List<MetaAnalysisResult> findAllByMemberIdOrderByPeriodEndDesc(Long memberId) {
+        return jpaRepository.findAllByMemberIdOrderByPeriodEndDesc(memberId);
     }
 }
