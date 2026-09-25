@@ -11,9 +11,10 @@ import java.util.stream.Collectors;
 
 @Component
 public class MetaAnalysisRegenerationGuard {
-    public boolean isUnchanged(List<Long> newEntryIds, Optional<MetaAnalysisResult> previous) {
+    public boolean isUnchanged(List<Long> newEntryIds, int newExcludedEntryCount, Optional<MetaAnalysisResult> previous) {
         return previous
-                .map(result -> extractEntryIds(result).equals(Set.copyOf(newEntryIds)))
+                .map(result -> extractEntryIds(result).equals(Set.copyOf(newEntryIds))
+                        && result.getExcludedEntryCount() == newExcludedEntryCount)
                 .orElse(false);
     }
 

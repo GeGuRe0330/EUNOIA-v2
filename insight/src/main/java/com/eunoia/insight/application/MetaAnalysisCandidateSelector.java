@@ -23,9 +23,7 @@ public class MetaAnalysisCandidateSelector {
 
         Map<LocalDate, EmotionAnalysisCandidate> bestPerDay = new LinkedHashMap<>();
         for (EmotionAnalysisCandidate candidate : qualified) {
-            bestPerDay.merge(candidate.entryDate(), candidate,
-                    (existing, incoming) ->
-                            incoming.entryClarityScore() > existing.entryClarityScore() ? incoming : existing);
+            bestPerDay.merge(candidate.entryDate(), candidate, this::selectBetter);
         }
 
         List<EmotionAnalysisCandidate> selected = bestPerDay.values().stream()
@@ -37,5 +35,15 @@ public class MetaAnalysisCandidateSelector {
         int excludedEntryCount = candidates.size() - selected.size();
 
         return new MetaAnalysisSelection(selected, excludedEntryCount);
+    }
+
+    private EmotionAnalysisCandidate selectBetter(EmotionAnalysisCandidate existing, EmotionAnalysisCandidate incoming) {
+        if (incoming.entryClarityScore() > existing.entryClarityScore()) {
+            return incoming;
+        }
+        if (incoming.entryClarityScore() < existing.entryClarityScore()) {
+            return existing;
+        }
+        return incoming.entryId() < existing.entryId() ? incoming : existing;
     }
 }

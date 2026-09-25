@@ -45,6 +45,7 @@ public class MetaAnalysisResult extends BaseEntity {
                                Integer basedOnCount, Integer excludedEntryCount, MetaAnalysisContent content) {
         validateMemberId(memberId);
         validatePeriod(periodStart, periodEnd);
+        validateCounts(basedOnCount, excludedEntryCount);
         validateContent(content);
 
         this.memberId = memberId;
@@ -61,6 +62,9 @@ public class MetaAnalysisResult extends BaseEntity {
     }
 
     public void update(Integer basedOnCount, Integer excludedEntryCount, MetaAnalysisContent content) {
+        validateCounts(basedOnCount, excludedEntryCount);
+        validateContent(content);
+
         this.basedOnCount = basedOnCount;
         this.excludedEntryCount = excludedEntryCount;
         this.content = content;
@@ -84,6 +88,15 @@ public class MetaAnalysisResult extends BaseEntity {
     private void validateContent(MetaAnalysisContent content) {
         if (content == null) {
             throw new IllegalArgumentException("content는 필수입니다.");
+        }
+    }
+
+    private void validateCounts(Integer basedOnCount, Integer excludedEntryCount) {
+        if (basedOnCount == null || basedOnCount < 0) {
+            throw new IllegalArgumentException("basedOnCount는 0 이상이어야 합니다.");
+        }
+        if (excludedEntryCount == null || excludedEntryCount < 0) {
+            throw new IllegalArgumentException("excludedEntryCount는 0 이상이어야 합니다.");
         }
     }
 }

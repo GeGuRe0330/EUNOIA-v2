@@ -17,12 +17,19 @@ public class EmotionEntryQueryService implements EmotionEntryQueryApi {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EmotionEntryContent> findContentsByEntryIds(List<Long> entryIds) {
+    public List<EmotionEntryContent> findContentsByEntryIds(Long memberId, List<Long> entryIds) {
+        validateMemberId(memberId);
         validateEntryIds(entryIds);
 
-        return emotionEntryRepository.findByIdIn(entryIds).stream()
+        return emotionEntryRepository.findByIdInAndMemberId(entryIds, memberId).stream()
                 .map(entry -> new EmotionEntryContent(entry.getId(), entry.getContent()))
                 .toList();
+    }
+
+    private void validateMemberId(Long memberId) {
+        if (memberId == null) {
+            throw new IllegalArgumentException("memberId는 필수입니다.");
+        }
     }
 
     private void validateEntryIds(List<Long> entryIds) {

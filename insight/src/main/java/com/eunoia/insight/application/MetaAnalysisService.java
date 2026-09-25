@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MetaAnalysisService {
 
-    private static final long PERIOD_LENGTH_DAYS = 29;
+    private static final long PERIOD_LOOKBACK_DAYS = 29;
 
     private final EmotionAnalysisQueryApi analysisQueryApi;
     private final EmotionEntryQueryApi journalQueryApi;
@@ -38,7 +38,7 @@ public class MetaAnalysisService {
     @Transactional(readOnly = true)
     public MetaAnalysisInfo getLatest(Long memberId) {
         LocalDate periodEnd = LocalDate.now();
-        LocalDate periodStart = periodEnd.minusDays(PERIOD_LENGTH_DAYS);
+        LocalDate periodStart = periodEnd.minusDays(PERIOD_LOOKBACK_DAYS);
 
         MetaAnalysisSelection selection = selectCandidates(memberId, periodStart, periodEnd);
         MetaAnalysisStatus status = resolveStatus(selection.selected().size());
@@ -51,7 +51,7 @@ public class MetaAnalysisService {
     @Transactional
     public MetaAnalysisInfo generate(Long memberId) {
         LocalDate periodEnd = LocalDate.now();
-        LocalDate periodStart = periodEnd.minusDays(PERIOD_LENGTH_DAYS);
+        LocalDate periodStart = periodEnd.minusDays(PERIOD_LOOKBACK_DAYS);
 
         MetaAnalysisSelection selection = selectCandidates(memberId, periodStart, periodEnd);
         List<EmotionAnalysisCandidate> selected = selection.selected();
@@ -63,11 +63,11 @@ public class MetaAnalysisService {
         List<Long> entryIds = selected.stream().map(EmotionAnalysisCandidate::entryId).toList();
         Optional<MetaAnalysisResult> latest = metaAnalysisResultRepository.findLatestByMemberId(memberId);
 
-        if (regenerationGuard.isUnchanged(entryIds, latest)) {
+        if (regenerationGuard.isUnchanged(entryIds, selection.excludedEntryCount(), latest)) {
             return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(), latest.orElse(null));
         }
 
-        MetaAnalysisContent content = buildContent(selected, entryIds, selection.excludedEntryCount());
+        MetaAnalysisContent content = buildContent(memberId, selected, entryIds, selection.excludedEntryCount());
 
         MetaAnalysisResult saved = upsert(memberId, periodStart, periodEnd, selected.size(), selection.excludedEntryCount(), content);
 
@@ -85,9 +85,9 @@ public class MetaAnalysisService {
                 : MetaAnalysisStatus.PREPARING;
     }
 
-    private MetaAnalysisContent buildContent(List<EmotionAnalysisCandidate> selected, List<Long> entryIds,
+    private MetaAnalysisContent buildContent(Long memberId, List<EmotionAnalysisCandidate> selected, List<Long> entryIds,
                                               int excludedEntryCount) {
-        Map<Long, String> contentsByEntryId = journalQueryApi.findContentsByEntryIds(entryIds).stream()
+        Map<Long, String> contentsByEntryId = journalQueryApi.findContentsByEntryIds(memberId, entryIds).stream()
                 .collect(Collectors.toMap(EmotionEntryContent::entryId, EmotionEntryContent::content));
 
         List<String> entryContents = selected.stream()
