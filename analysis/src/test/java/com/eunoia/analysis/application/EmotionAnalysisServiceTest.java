@@ -184,7 +184,7 @@ class EmotionAnalysisServiceTest {
     void getLatest_withExistingAnalysis_returnsInfo() {
         EmotionAnalysis analysis = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
                 "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
-        when(emotionAnalysisRepository.findTopByMemberIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.of(analysis));
+        when(emotionAnalysisRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(2L)).thenReturn(Optional.of(analysis));
 
         Optional<EmotionAnalysisInfo> result = emotionAnalysisService.getLatest(2L);
 
@@ -195,7 +195,7 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("분석이 하나도 없으면 최신 분석 조회는 빈 값을 반환한다.")
     void getLatest_withNoAnalyses_returnsEmpty() {
-        when(emotionAnalysisRepository.findTopByMemberIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.empty());
+        when(emotionAnalysisRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(2L)).thenReturn(Optional.empty());
 
         Optional<EmotionAnalysisInfo> result = emotionAnalysisService.getLatest(2L);
 
@@ -210,7 +210,7 @@ class EmotionAnalysisServiceTest {
         EmotionAnalysis earlier = EmotionAnalysis.create(2L, 2L, LocalDate.of(2026, 9, 10), "평온", "평온,안정",
                 "요약", "흐름", "감정요약", 60.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
         // 리포지토리는 entryDate 내림차순으로 반환(신규 메서드 이름 그대로) — 서비스가 오름차순으로 뒤집어야 함
-        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDesc(2L, AnalysisStatus.SUCCESS))
+        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(2L, AnalysisStatus.SUCCESS))
                 .thenReturn(new ArrayList<>(List.of(later, earlier)));
 
         List<EmotionScorePoint> result = emotionAnalysisService.getScores(2L);
@@ -225,7 +225,7 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("분석이 하나도 없으면 감정 점수 목록은 빈 리스트를 반환한다.")
     void getScores_withNoAnalyses_returnsEmptyList() {
-        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDesc(2L, AnalysisStatus.SUCCESS))
+        when(emotionAnalysisRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(2L, AnalysisStatus.SUCCESS))
                 .thenReturn(new ArrayList<>());
 
         List<EmotionScorePoint> result = emotionAnalysisService.getScores(2L);

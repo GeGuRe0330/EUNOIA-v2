@@ -84,14 +84,14 @@ public class EmotionAnalysisService {
 
     @Transactional(readOnly = true)
     public Optional<EmotionAnalysisInfo> getLatest(Long memberId) {
-        return emotionAnalysisRepository.findTopByMemberIdOrderByCreatedAtDesc(memberId)
+        return emotionAnalysisRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(memberId)
                 .map(EmotionAnalysisInfo::from);
     }
 
     @Transactional(readOnly = true)
     public List<EmotionScorePoint> getScores(Long memberId) {
         List<EmotionAnalysis> analyses = emotionAnalysisRepository
-                .findTop7ByMemberIdAndStatusOrderByEntryDateDesc(memberId, AnalysisStatus.SUCCESS);
+                .findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(memberId, AnalysisStatus.SUCCESS);
         Collections.reverse(analyses);
         return analyses.stream().map(EmotionScorePoint::from).toList();
     }

@@ -12,7 +12,7 @@ public interface EmotionAnalysisRepository {
     List<EmotionAnalysis> findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc
             (Long memberId, LocalDate startDate, LocalDate endDate, AnalysisStatus status);
 
-    Optional<EmotionAnalysis> findTopByMemberIdOrderByCreatedAtDesc(Long memberId);
+    Optional<EmotionAnalysis> findTopByMemberIdOrderByEntryDateDescEntryIdDesc(Long memberId);
 
-    List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDesc(Long memberId, AnalysisStatus status);
+    List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(Long memberId, AnalysisStatus status);
 }

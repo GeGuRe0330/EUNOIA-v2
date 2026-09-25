@@ -33,12 +33,12 @@ public class EmotionAnalysisRepositoryAdapter implements EmotionAnalysisReposito
     }
 
     @Override
-    public Optional<EmotionAnalysis> findTopByMemberIdOrderByCreatedAtDesc(Long memberId) {
-        return jpaRepository.findTopByMemberIdOrderByCreatedAtDesc(memberId);
+    public Optional<EmotionAnalysis> findTopByMemberIdOrderByEntryDateDescEntryIdDesc(Long memberId) {
+        return jpaRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(memberId);
     }
 
     @Override
-    public List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDesc(Long memberId, AnalysisStatus status) {
-        return jpaRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDesc(memberId, status);
+    public List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(Long memberId, AnalysisStatus status) {
+        return jpaRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(memberId, status);
     }
 }
