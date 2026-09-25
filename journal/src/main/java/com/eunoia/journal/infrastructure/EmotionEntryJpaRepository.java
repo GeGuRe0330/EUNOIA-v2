@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface EmotionEntryJpaRepository extends JpaRepository<EmotionEntry, Long> {
     List<EmotionEntry> findByMemberIdOrderByEntryDateDesc(Long memberId);
+
+    List<EmotionEntry> findByIdInAndMemberId(List<Long> entryIds, Long memberId);
 }
