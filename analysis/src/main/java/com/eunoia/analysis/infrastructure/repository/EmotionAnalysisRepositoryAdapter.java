@@ -31,4 +31,14 @@ public class EmotionAnalysisRepositoryAdapter implements EmotionAnalysisReposito
             Long memberId, LocalDate startDate, LocalDate endDate, AnalysisStatus status) {
         return jpaRepository.findByMemberIdAndEntryDateBetweenAndStatusOrderByEntryDateAscEntryIdAsc(memberId, startDate, endDate, status);
     }
+
+    @Override
+    public Optional<EmotionAnalysis> findTopByMemberIdOrderByCreatedAtDesc(Long memberId) {
+        return jpaRepository.findTopByMemberIdOrderByCreatedAtDesc(memberId);
+    }
+
+    @Override
+    public List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDesc(Long memberId, AnalysisStatus status) {
+        return jpaRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDesc(memberId, status);
+    }
 }

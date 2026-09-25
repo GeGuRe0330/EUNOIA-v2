@@ -1,10 +1,8 @@
 package com.eunoia.analysis.application;
 
 import com.eunoia.analysis.application.dto.EmotionAnalysisInfo;
-import com.eunoia.analysis.domain.EmotionAnalysis;
-import com.eunoia.analysis.domain.EmotionAnalysisRepository;
-import com.eunoia.analysis.domain.EmotionAnalysisResult;
-import com.eunoia.analysis.domain.EmotionAnalyzer;
+import com.eunoia.analysis.application.dto.EmotionScorePoint;
+import com.eunoia.analysis.domain.*;
 import com.eunoia.common.exception.BusinessException;
 import com.eunoia.journal.event.EmotionEntryRecorded;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -78,5 +80,19 @@ public class EmotionAnalysisService {
         }
 
         return EmotionAnalysisInfo.from(analysis);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<EmotionAnalysisInfo> getLatest(Long memberId) {
+        return emotionAnalysisRepository.findTopByMemberIdOrderByCreatedAtDesc(memberId)
+                .map(EmotionAnalysisInfo::from);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EmotionScorePoint> getScores(Long memberId) {
+        List<EmotionAnalysis> analyses = emotionAnalysisRepository
+                .findTop7ByMemberIdAndStatusOrderByEntryDateDesc(memberId, AnalysisStatus.SUCCESS);
+        Collections.reverse(analyses);
+        return analyses.stream().map(EmotionScorePoint::from).toList();
     }
 }
