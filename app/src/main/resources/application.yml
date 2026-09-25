@@ -2,9 +2,6 @@ spring:
   application:
     name: eunoia
 
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
-
   datasource:
     url: jdbc:mysql://localhost:3306/eunoia
     username: ${DB_USERNAME:eunoia}
@@ -35,6 +32,7 @@ server:
     session:
       cookie:
         same-site: lax
+        secure: true
 
 logging:
   level:
