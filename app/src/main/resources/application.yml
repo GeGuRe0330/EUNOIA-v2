@@ -2,6 +2,9 @@ spring:
   application:
     name: eunoia
 
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
   datasource:
     url: jdbc:mysql://localhost:3306/eunoia
     username: ${DB_USERNAME:eunoia}
@@ -27,9 +30,11 @@ spring:
       republish-outstanding-events-on-restart: true
       completion-mode: DELETE
 
-app:
-  cors:
-    allowed-origins: http://localhost:5173
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: lax
 
 logging:
   level:

@@ -20,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -49,6 +50,7 @@ public class MemberFlowIntegrationTest {
     //mock테스트 전용 회원가입 메서드
     private void signup(String email, String password, String nickname, int age, String gender) throws Exception {
         mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"email":"%s","password":"%s","nickname":"%s","age":%d,"gender":"%s"}
@@ -63,6 +65,7 @@ public class MemberFlowIntegrationTest {
         signup("test@test.com", "rawPassword1!", "하나", 20, "FEMALE");
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                    .with(csrf())
                     .param("username", "test@test.com")
                     .param("password", "rawPassword1!"))
                 .andExpect(status().isOk())
@@ -84,6 +87,7 @@ public class MemberFlowIntegrationTest {
         signup("logout@test.com", "rawPassword1!", "로그아웃", 20, "MALE");
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
                         .param("username", "logout@test.com")
                         .param("password", "rawPassword1!"))
                 .andExpect(status().isOk())
@@ -94,7 +98,7 @@ public class MemberFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value("logout@test.com"));
 
-        mockMvc.perform(post("/api/v1/auth/logout").session(session))
+        mockMvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/members/me").session(session))
@@ -107,6 +111,7 @@ public class MemberFlowIntegrationTest {
         signup("me@test.com", "rawPassword1!", "내정보", 25, "FEMALE");
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
                         .param("username", "me@test.com")
                         .param("password", "rawPassword1!"))
                 .andExpect(status().isOk())
@@ -133,9 +138,26 @@ public class MemberFlowIntegrationTest {
     @DisplayName("존재하지 않는 이메일로 로그인하면 401과 실패 응답을 반환한다.")
     void login_withUnknownEmail_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
+                    .with(csrf())
                     .param("username", "nobody@test.com")
                     .param("password", "rawPassword1!"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("CSRF 토큰 없이 상태 변경 요청을 보내면 403이 반환된다.")
+    void csrfProtection_blocksRequestWithoutToken() throws Exception {
+        // 실제 쿠키 발급 + 더블서브밋 헤더 왕복까지 검증하는 테스트는 의도적으로 두지 않음 —
+        // spring-security-test의 .with(csrf())가 같은 테스트 실행(공유 Spring 컨텍스트) 안에서
+        // CsrfTokenRepository를 테스트 전용 세션 기반 저장소로 전역 교체해버려, 이 프로젝트처럼
+        // 다른 통합 테스트들이 .with(csrf())를 광범위하게 쓰는 상황에서는 MockMvc로 신뢰성 있게
+        // 검증할 수 없음이 실제로 확인됨(디버깅 기록은 branch-work-history/12 참고).
+        // 토큰이 아예 없을 때 거부되는지(=CSRF 보호가 실제로 켜져 있는지)는 저장소 종류와 무관하게
+        // 항상 성립하므로 이것만 검증. 실제 쿠키+헤더 왕복은 프론트 연동 시점에 브라우저로 실증.
+        mockMvc.perform(post("/api/v1/auth/login")
+                    .param("username", "csrf@test.com")
+                    .param("password", "rawPassword1!"))
+                .andExpect(status().isForbidden());
     }
 }

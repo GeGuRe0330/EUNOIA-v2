@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,6 +48,7 @@ public class JournalEntryFlowIntegrationTest {
     //mock테스트 전용 회원가입+로그인 메서드
     private MockHttpSession signupAndLogin(String email, String password, String nickname, int age, String gender) throws Exception {
         mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"email":"%s","password":"%s","nickname":"%s","age":%d,"gender":"%s"}
@@ -55,6 +57,7 @@ public class JournalEntryFlowIntegrationTest {
         jdbcTemplate.update("UPDATE members SET status = 'ACTIVE' WHERE email = ?", email);
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
                         .param("username", email)
                         .param("password", password))
                 .andExpect(status().isOk())
@@ -65,6 +68,7 @@ public class JournalEntryFlowIntegrationTest {
     private Long writeEntry(MockHttpSession session, String content, String entryDate) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/emotion-entries")
                         .session(session)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"content":"%s","entryDate":"%s"}
@@ -82,6 +86,7 @@ public class JournalEntryFlowIntegrationTest {
 
         MvcResult result = mockMvc.perform(post("/api/v1/emotion-entries")
                         .session(session)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"content":"오늘은 맑았다","entryDate":"2026-09-20"}
@@ -108,6 +113,7 @@ public class JournalEntryFlowIntegrationTest {
     @DisplayName("로그인하지 않으면 감정일기를 작성할 수 없다.")
     void write_withoutLogin_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/emotion-entries")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"content":"오늘은 맑았다","entryDate":"2026-09-20"}

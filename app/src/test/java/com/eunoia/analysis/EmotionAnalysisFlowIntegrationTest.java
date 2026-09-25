@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,6 +53,7 @@ public class EmotionAnalysisFlowIntegrationTest {
     //mock테스트 전용 회원가입+로그인 메서드
     private MockHttpSession signupAndLogin(String email, String password, String nickname, int age, String gender) throws Exception {
         mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"email":"%s","password":"%s","nickname":"%s","age":%d,"gender":"%s"}
@@ -60,6 +62,7 @@ public class EmotionAnalysisFlowIntegrationTest {
         jdbcTemplate.update("UPDATE members SET status = 'ACTIVE' WHERE email = ?", email);
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
                         .param("username", email)
                         .param("password", password))
                 .andExpect(status().isOk())
@@ -70,6 +73,7 @@ public class EmotionAnalysisFlowIntegrationTest {
     private Long writeEntry(MockHttpSession session, String content, String entryDate) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/emotion-entries")
                         .session(session)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"content":"%s","entryDate":"%s"}

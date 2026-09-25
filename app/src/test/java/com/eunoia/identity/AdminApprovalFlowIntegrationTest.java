@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,6 +44,7 @@ public class AdminApprovalFlowIntegrationTest {
     //mock테스트 전용 회원가입 메서드
     private void signup(String email, String password, String nickname, int age, String gender) throws Exception {
         mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                         {"email":"%s","password":"%s","nickname":"%s","age":%d,"gender":"%s"}
@@ -52,6 +54,7 @@ public class AdminApprovalFlowIntegrationTest {
 
     private MockHttpSession loginSession(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
                         .param("username", email)
                         .param("password", password))
                 .andExpect(status().isOk())
@@ -65,6 +68,7 @@ public class AdminApprovalFlowIntegrationTest {
         signup("pending@test.com", "rawPassword1!", "대기회원", 20, "FEMALE");
 
         mockMvc.perform(post("/api/v1/auth/login")
+                    .with(csrf())
                     .param("username", "pending@test.com")
                     .param("password", "rawPassword1!"))
                 .andExpect(status().isUnauthorized());
@@ -86,7 +90,7 @@ public class AdminApprovalFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[*].email", org.hamcrest.Matchers.hasItem("approve@test.com")));
 
-        mockMvc.perform(patch("/api/v1/admin/members/{memberId}/approve", targetId).session(adminSession))
+        mockMvc.perform(patch("/api/v1/admin/members/{memberId}/approve", targetId).session(adminSession).with(csrf()))
                 .andExpect(status().isOk());
 
         MockHttpSession approvedSession = loginSession("approve@test.com", "rawPassword1!");
