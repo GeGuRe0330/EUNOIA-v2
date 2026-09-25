@@ -79,7 +79,7 @@ public class MemberFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("로그인한 후에는 인증된 세션으로 접근할 수 있고, 로그아웃하면 같은 세션으로는 접근할 수 없다.")
+    @DisplayName("로그인한 후에는 인증된 세션으로 내 정보를 조회할 수 있고, 로그아웃하면 같은 세션으로는 접근할 수 없다.")
     void accessProtectedApi_withoutLogin_returns401() throws Exception {
         signup("logout@test.com", "rawPassword1!", "로그아웃", 20, "MALE");
 
@@ -90,14 +90,42 @@ public class MemberFlowIntegrationTest {
                 .andReturn();
         MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
 
-        // 인증된 세션 - 핸들러가 없는 경로라도 인증 필터는 통과 -> 404까지 도달한다.
         mockMvc.perform(get("/api/v1/members/me").session(session))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("logout@test.com"));
 
         mockMvc.perform(post("/api/v1/auth/logout").session(session))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("로그인 상태에서 내 정보를 조회하면 role을 포함한 전체 정보를 반환한다.")
+    void getMe_withLoggedInSession_returnsFullMemberInfo() throws Exception {
+        signup("me@test.com", "rawPassword1!", "내정보", 25, "FEMALE");
+
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .param("username", "me@test.com")
+                        .param("password", "rawPassword1!"))
+                .andExpect(status().isOk())
+                .andReturn();
+        MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("me@test.com"))
+                .andExpect(jsonPath("$.data.nickname").value("내정보"))
+                .andExpect(jsonPath("$.data.age").value(25))
+                .andExpect(jsonPath("$.data.gender").value("FEMALE"))
+                .andExpect(jsonPath("$.data.role").value("USER"));
+    }
+
+    @Test
+    @DisplayName("로그인하지 않은 상태로 내 정보를 조회하면 401을 반환한다.")
+    void getMe_withoutLogin_returns401() throws Exception {
+        mockMvc.perform(get("/api/v1/members/me"))
                 .andExpect(status().isUnauthorized());
     }
 
