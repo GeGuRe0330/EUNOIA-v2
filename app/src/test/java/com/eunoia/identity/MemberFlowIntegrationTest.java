@@ -176,4 +176,20 @@ public class MemberFlowIntegrationTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.message").value("요청 형식이 올바르지 않아요."));
     }
+
+    @Test
+    @DisplayName("이메일 형식이 잘못되면 범용 문구와 함께 필드별 검증 메시지(errors)가 보존된다.")
+    void signup_withInvalidEmailFormat_returnsFieldErrors() throws Exception {
+        mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"email":"not-an-email","password":"rawPassword1!","nickname":"닉네임","age":20,"gender":"FEMALE"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.message").value("잘못된 요청이에요."))
+                .andExpect(jsonPath("$.error.errors[0].field").value("email"))
+                .andExpect(jsonPath("$.error.errors[0].message").exists());
+    }
 }
