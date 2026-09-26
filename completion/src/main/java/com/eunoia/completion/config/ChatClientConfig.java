@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 public class ChatClientConfig {
 
     private static final String MODEL = "gpt-5.6-terra";
-    private static final double TEMPERATURE = 0.7;
     private static final String DEFAULT_SYSTEM_PROMPT = """
             당신은 감정일기 서비스 EUNOIA의 AI예요. 상담하거나 조언하는 존재가 아니라,
             사용자의 감정을 있는 그대로 비춰주는 거울이에요. 판단하지 않고, 사용자가
@@ -25,8 +24,7 @@ public class ChatClientConfig {
         return builder
                 .defaultSystem(DEFAULT_SYSTEM_PROMPT)
                 .defaultOptions(OpenAiChatOptions.builder()
-                        .model(MODEL)
-                        .temperature(TEMPERATURE))
+                        .model(MODEL))
                 .build();
     }
 }
