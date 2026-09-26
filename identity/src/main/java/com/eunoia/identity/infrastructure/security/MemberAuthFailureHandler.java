@@ -27,11 +27,11 @@ public class MemberAuthFailureHandler implements AuthenticationFailureHandler {
 
         if (exception instanceof UsernameNotFoundException || exception instanceof BadCredentialsException) {
             objectMapper.writeValue(response.getWriter(),
-                    ApiResponse.fail(new ApiResponse.ApiError("이메일 또는 비밀번호가 일치하지 않습니다.", null)));
+                    ApiResponse.fail(new ApiResponse.ApiError("이메일 또는 비밀번호가 일치하지 않아요.", null)));
             return;
         }
 
         objectMapper.writeValue(response.getWriter(),
-                ApiResponse.fail(new ApiResponse.ApiError("로그인에 실패했습니다.", null)));
+                ApiResponse.fail(new ApiResponse.ApiError("로그인에 실패했어요.", null)));
     }
 }

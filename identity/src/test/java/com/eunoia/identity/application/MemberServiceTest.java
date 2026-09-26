@@ -46,7 +46,7 @@ public class MemberServiceTest {
 
         assertThatThrownBy(() -> memberService.register(
                 new RegisterMemberCommand("test@test.com", "rawPassword1!", "하나", 20, Gender.FEMALE)))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BusinessException.class);
 
         verify(memberRepository, never()).save(any());
     }

@@ -21,7 +21,7 @@ public class MemberService {
     @Transactional
     public MemberInfo register(RegisterMemberCommand command) {
         if (memberRepository.existsByEmail(command.email())) {
-            throw new IllegalStateException("이미 가입된 이메일입니다.");
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 가입된 이메일이에요.");
         }
 
         String encodedPassword = passwordEncoder.encode(command.password());
@@ -33,7 +33,7 @@ public class MemberService {
     @Transactional(readOnly = true)
     public MemberInfo getMe(Long memberId) {
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원이에요."));
         return MemberInfo.from(member);
     }
 }

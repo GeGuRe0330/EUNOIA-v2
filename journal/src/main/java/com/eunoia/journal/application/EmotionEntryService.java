@@ -35,10 +35,10 @@ public class EmotionEntryService {
     @Transactional(readOnly = true)
     public EmotionEntryInfo getById(Long entryId, Long requestId) {
         EmotionEntry entry = emotionEntryRepository.findById(entryId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 감정글입니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 감정글이에요."));
 
         if (!entry.isOwnedBy(requestId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "해당 감정글에 대한 접근 권한이 없습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "해당 감정글에 대한 접근 권한이 없어요.");
         }
 
         return EmotionEntryInfo.from(entry);
