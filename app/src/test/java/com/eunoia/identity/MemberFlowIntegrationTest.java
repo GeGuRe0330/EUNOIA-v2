@@ -160,4 +160,20 @@ public class MemberFlowIntegrationTest {
                     .param("password", "rawPassword1!"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("요청 형식이 잘못되면(JSON 파싱 실패) 영어 범용 문구 대신 한국어 문구로 400을 반환한다.")
+    void signup_withMalformedJson_returnsKoreanGenericMessage() throws Exception {
+        // age에 숫자로 변환 불가능한 값을 보내면 Integer 역직렬화 자체가 실패한다(HttpMessageNotReadableException).
+        // (빈 문자열("")은 Jackson이 null로 코어스해 @NotNull 검증 쪽으로 빠지므로 재현에 부적합 — 실제 확인함)
+        mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"email":"malformed@test.com","password":"rawPassword1!","nickname":"닉네임","age":"abc","gender":"FEMALE"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.message").value("요청 형식이 올바르지 않아요."));
+    }
 }

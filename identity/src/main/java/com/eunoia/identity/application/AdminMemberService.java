@@ -28,8 +28,12 @@ public class AdminMemberService {
     @Transactional
     public void approve(Long memberId) {
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원이에요."));
 
-        member.approve();
+        try {
+            member.approve();
+        } catch (IllegalStateException e) {
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 승인된 회원이에요.");
+        }
     }
 }

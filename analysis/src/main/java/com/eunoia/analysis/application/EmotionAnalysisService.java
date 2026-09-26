@@ -73,10 +73,10 @@ public class EmotionAnalysisService {
     @Transactional(readOnly = true)
     public EmotionAnalysisInfo getByEntryId(Long entryId, Long requesterId) {
         EmotionAnalysis analysis = emotionAnalysisRepository.findByEntryId(entryId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "아직 분석 결과가 없습니다."));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "아직 분석 결과가 없어요."));
 
         if (!analysis.isOwnedBy(requesterId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "해당 분석 결과에 대한 접근 권한이 없습니다.");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "해당 분석 결과에 대한 접근 권한이 없어요.");
         }
 
         return EmotionAnalysisInfo.from(analysis);

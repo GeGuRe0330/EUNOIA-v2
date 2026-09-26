@@ -74,6 +74,6 @@ public class AdminMemberServiceTest {
         when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
 
         assertThatThrownBy(() -> adminMemberService.approve(1L))
-            .isInstanceOf(IllegalStateException.class);
+            .isInstanceOf(BusinessException.class);
     }
 }
