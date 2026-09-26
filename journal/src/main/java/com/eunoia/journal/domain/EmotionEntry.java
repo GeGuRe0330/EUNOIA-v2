@@ -21,7 +21,7 @@ public class EmotionEntry extends BaseEntity {
     private Long memberId;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, length = Integer.MAX_VALUE)
     private String content;
 
     @Column(nullable = false)
