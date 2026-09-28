@@ -19,10 +19,20 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
+      timeout: 30s
+      max-retries: 1
 
-app:
-  cors:
-    allowed-origins: http://localhost:5173
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: true
+      completion-mode: DELETE
+
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+        secure: true
 
 logging:
   level:

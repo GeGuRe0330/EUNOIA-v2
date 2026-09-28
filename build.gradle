@@ -22,6 +22,12 @@ subprojects {
         }
     }
 
+    // org.springframework.boot 플러그인은 -parameters를 자동으로 넣어주지만 그건 app에만 적용됨 —
+    // @PathVariable/@RequestParam에 이름을 안 써도 리플렉션으로 파라미터명을 읽게 하려고 전 서브모듈에 동일하게 적용
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs << '-parameters'
+    }
+
     dependencyManagement {
         imports {
             mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES

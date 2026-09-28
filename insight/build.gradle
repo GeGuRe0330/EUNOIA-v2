@@ -2,11 +2,24 @@ plugins {
     id 'java-library'
 }
 
+// completion 모듈이 쓰는 spring-ai-starter-model-openai의 버전을, 실제로 클래스패스를 리졸브하는
+// 이 모듈(insight)에서도 알아야 한다 — io.spring.dependency-management는 리졸브 주체 프로젝트 기준으로
+// 적용되므로, completion의 dependencyManagement만으로는 insight의 testRuntimeClasspath 리졸브 시점에
+// 전파되지 않는다(analysis/build.gradle과 동일한 이유).
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.ai:spring-ai-bom:2.0.0'
+    }
+}
+
 dependencies {
     implementation project(':common')
     implementation project(':analysis')   // Query API(@NamedInterface) 호출용
+    implementation project(':journal')    // Query API(@NamedInterface) 호출용 — 원본 일기 본문 조회
+    implementation project(':completion') // 메타분석 GPT 구조화 호출용
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
