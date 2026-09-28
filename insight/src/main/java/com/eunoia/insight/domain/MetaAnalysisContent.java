@@ -1,5 +1,6 @@
 package com.eunoia.insight.domain;
 
+import java.time.LocalDate;
 import java.util.List;
 
 // 도메인 / 영속 ( JSON 컬럼 ) / API 응답 세 계약을 동일 타입으로 공유하는 의도적 결합.
@@ -65,6 +66,7 @@ public record MetaAnalysisContent(
 
     public record RepresentativeEntry(
             Long entryId,
+            LocalDate entryDate,
             String whySelected
     ) {}
 }

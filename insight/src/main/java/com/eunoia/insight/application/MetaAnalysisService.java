@@ -104,7 +104,7 @@ public class MetaAnalysisService {
 
         List<MetaAnalysisContent.RepresentativeEntry> evidence = selected.stream()
                 .map(candidate -> new MetaAnalysisContent.RepresentativeEntry(
-                        candidate.entryId(), resolveWhySelected(candidate.entryClarityReason())))
+                        candidate.entryId(), candidate.entryDate(), resolveWhySelected(candidate.entryClarityReason())))
                 .toList();
 
         MetaAnalysisContent.Clarity clarity = new MetaAnalysisContent.Clarity(

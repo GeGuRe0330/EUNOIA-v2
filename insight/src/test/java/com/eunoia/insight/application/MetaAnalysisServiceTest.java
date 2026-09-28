@@ -235,7 +235,7 @@ class MetaAnalysisServiceTest {
 
     private MetaAnalysisResult existingResult(List<EmotionAnalysisCandidate> selected, int excludedEntryCount) {
         List<MetaAnalysisContent.RepresentativeEntry> evidence = selected.stream()
-                .map(c -> new MetaAnalysisContent.RepresentativeEntry(c.entryId(), "이유"))
+                .map(c -> new MetaAnalysisContent.RepresentativeEntry(c.entryId(), c.entryDate(), "이유"))
                 .toList();
         MetaAnalysisContent content = new MetaAnalysisContent(
                 new MetaAnalysisContent.Outer("요약", List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),

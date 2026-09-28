@@ -55,7 +55,7 @@ class MetaAnalysisRegenerationGuardTest {
 
     private MetaAnalysisResult resultWithEvidence(List<Long> entryIds, int excludedEntryCount) {
         List<MetaAnalysisContent.RepresentativeEntry> evidence = entryIds.stream()
-                .map(id -> new MetaAnalysisContent.RepresentativeEntry(id, "이유"))
+                .map(id -> new MetaAnalysisContent.RepresentativeEntry(id, LocalDate.of(2026, 1, 1), "이유"))
                 .toList();
 
         MetaAnalysisContent content = new MetaAnalysisContent(
