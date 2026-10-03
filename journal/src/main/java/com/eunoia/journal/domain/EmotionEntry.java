@@ -5,10 +5,13 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
+@SQLRestriction("deleted_at IS NULL") // 소프트 삭제된 글은 findById, 파생쿼리, JPQL 전부에서 자동 제외 ( 네이티브 쿼리는 미적용 - 직접 조건 추가 )
 @Table(name = "emotion_entries")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -26,6 +29,9 @@ public class EmotionEntry extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate entryDate;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     private EmotionEntry(Long memberId, String content, LocalDate entryDate) {
         validateMemberId(memberId);
@@ -50,6 +56,10 @@ public class EmotionEntry extends BaseEntity {
         if (memberId == null) {
             throw new IllegalArgumentException("작성자 ID는 필수입니다.");
         }
+    }
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
     }
 
     public boolean isOwnedBy(Long memberId) {

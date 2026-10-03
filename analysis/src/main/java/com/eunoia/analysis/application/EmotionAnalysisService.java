@@ -4,12 +4,16 @@ import com.eunoia.analysis.application.dto.EmotionAnalysisInfo;
 import com.eunoia.analysis.application.dto.EmotionScorePoint;
 import com.eunoia.analysis.domain.*;
 import com.eunoia.common.exception.BusinessException;
+import com.eunoia.journal.event.EmotionEntryDeleted;
 import com.eunoia.journal.event.EmotionEntryRecorded;
+import com.eunoia.journal.query.EmotionEntryQueryApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.modulith.events.ApplicationModuleListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Collections;
 import java.util.List;
@@ -26,14 +30,31 @@ public class EmotionAnalysisService {
 
     private final EmotionAnalysisRepository emotionAnalysisRepository;
     private final EmotionAnalyzer emotionAnalyzer;
+    private final EmotionEntryQueryApi emotionEntryQueryApi;
 
-    @ApplicationModuleListener
+    // 바깥 트랜잭션 없이 실행 — 각 조회가 최신 커밋 상태를 봐야 GPT 호출 중 커밋된 삭제를 잡을 수 있다(@ApplicationModuleListener로 안 묶는 이유)
+    @Async
+    @TransactionalEventListener
     public void handle(EmotionEntryRecorded event) {
         if (emotionAnalysisRepository.findByEntryId(event.entryId()).isPresent()) {
             return;
         }
+        if (!emotionEntryQueryApi.existsEntry(event.memberId(), event.entryId())) {
+            return;
+        }
 
-        emotionAnalysisRepository.save(analyze(event));
+        EmotionAnalysis saved = emotionAnalysisRepository.save(analyze(event));
+
+        if (!emotionEntryQueryApi.existsEntry(event.memberId(), event.entryId())) {
+            saved.delete();
+            emotionAnalysisRepository.save(saved);
+        }
+    }
+
+    @ApplicationModuleListener
+    public void handle(EmotionEntryDeleted event) {
+        emotionAnalysisRepository.findByEntryId(event.entryId())
+                .ifPresent(EmotionAnalysis::delete);
     }
 
     private EmotionAnalysis analyze(EmotionEntryRecorded event) {

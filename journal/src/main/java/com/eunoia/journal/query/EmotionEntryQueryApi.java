@@ -4,4 +4,6 @@ import java.util.List;
 
 public interface EmotionEntryQueryApi {
     List<EmotionEntryContent> findContentsByEntryIds(Long memberId, List<Long> entryIds);
+
+    boolean existsEntry(Long memberId, Long entryId);
 }

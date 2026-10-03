@@ -6,13 +6,16 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
 @Table(name = "emotion_analyses")
+@SQLRestriction("deleted_at IS NULL") // 소프트 삭제된 분석은 findByEntryId, latest, scores, 메타분석 후보에서 자동 제외 (네이티브 쿼리는 미적용)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EmotionAnalysis extends BaseEntity {
@@ -60,6 +63,9 @@ public class EmotionAnalysis extends BaseEntity {
 
     @Column(length = 1000)
     private String failureReason;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     private EmotionAnalysis(Long entryId, Long memberId, LocalDate entryDate, String emotionDetected, String keywords,
                             String insightSummary, String flowHint, String emotionSummary,
@@ -163,6 +169,10 @@ public class EmotionAnalysis extends BaseEntity {
         if (warmMessages.stream().anyMatch(message -> message == null || message.isBlank())) {
             throw new IllegalArgumentException("warmMessages는 빈 문자열을 포함할 수 없습니다.");
         }
+    }
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
     }
 
     public boolean isOwnedBy(Long memberId) {
