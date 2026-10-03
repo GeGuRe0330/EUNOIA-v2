@@ -11,4 +11,6 @@ public interface EmotionEntryRepository {
     List<EmotionEntry> findByMemberIdOrderByEntryDateDesc(Long memberId );
 
     List<EmotionEntry> findByIdInAndMemberId(List<Long> entryIds, Long memberId);
+
+    boolean existsByIdAndMemberId(Long entryId, Long memberId);
 }

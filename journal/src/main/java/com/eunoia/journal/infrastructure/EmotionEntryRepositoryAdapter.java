@@ -33,4 +33,9 @@ public class EmotionEntryRepositoryAdapter implements EmotionEntryRepository {
     public List<EmotionEntry> findByIdInAndMemberId(List<Long> entryIds,  Long memberId) {
         return jpaRepository.findByIdInAndMemberId(entryIds, memberId);
     }
+
+    @Override
+    public boolean existsByIdAndMemberId(Long entryId, Long memberId) {
+        return jpaRepository.existsByIdAndMemberId(entryId, memberId);
+    }
 }

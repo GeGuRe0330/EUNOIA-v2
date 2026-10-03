@@ -9,4 +9,6 @@ public interface EmotionEntryJpaRepository extends JpaRepository<EmotionEntry, L
     List<EmotionEntry> findByMemberIdOrderByEntryDateDesc(Long memberId);
 
     List<EmotionEntry> findByIdInAndMemberId(List<Long> entryIds, Long memberId);
+
+    boolean existsByIdAndMemberId(Long entryId, Long memberId);
 }

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -164,5 +165,40 @@ class EmotionAnalysisTest {
         assertThat(analysis.getFailureReason()).isEqualTo("실패 사유");
         assertThat(analysis.getEmotionDetected()).isNull();
         assertThat(analysis.getWarmMessages()).isNull();
+    }
+
+    @Test
+    @DisplayName("새로 생성한 분석은 성공·실패 모두 삭제되지 않은 상태다.")
+    void createAndFail_newAnalysis_isNotDeleted() {
+        EmotionAnalysis success = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+        EmotionAnalysis failed = EmotionAnalysis.fail(1L, 2L, ENTRY_DATE, "실패 사유");
+
+        assertThat(success.getDeletedAt()).isNull();
+        assertThat(failed.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("성공한 분석을 삭제하면 삭제 시각이 기록된다.")
+    void delete_successAnalysis_setDeletedAt() {
+        EmotionAnalysis analysis = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+        LocalDateTime before = LocalDateTime.now();
+
+        analysis.delete();
+
+        assertThat(analysis.getDeletedAt()).isBetween(before, LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("실패한 분석도 삭제할 수 있고, 상태는 FAILED로 유지된다.")
+    void delete_failedAnalysis_setDeletedAtAndKeepStatus() {
+        EmotionAnalysis analysis = EmotionAnalysis.fail(1L, 2L, ENTRY_DATE, "실패 사유");
+        LocalDateTime before = LocalDateTime.now();
+
+        analysis.delete();
+
+        assertThat(analysis.getDeletedAt()).isBetween(before, LocalDateTime.now());
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.FAILED);
     }
 }

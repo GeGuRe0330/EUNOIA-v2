@@ -8,7 +8,9 @@ import com.eunoia.analysis.domain.EmotionAnalysisRepository;
 import com.eunoia.analysis.domain.EmotionAnalysisResult;
 import com.eunoia.analysis.domain.EmotionAnalyzer;
 import com.eunoia.common.exception.BusinessException;
+import com.eunoia.journal.event.EmotionEntryDeleted;
 import com.eunoia.journal.event.EmotionEntryRecorded;
+import com.eunoia.journal.query.EmotionEntryQueryApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -37,11 +40,14 @@ class EmotionAnalysisServiceTest {
     @Mock
     private EmotionAnalyzer emotionAnalyzer;
 
+    @Mock
+    private EmotionEntryQueryApi emotionEntryQueryApi;
+
     private EmotionAnalysisService emotionAnalysisService;
 
     @BeforeEach
     void setUp() {
-        emotionAnalysisService = new EmotionAnalysisService(emotionAnalysisRepository, emotionAnalyzer);
+        emotionAnalysisService = new EmotionAnalysisService(emotionAnalysisRepository, emotionAnalyzer, emotionEntryQueryApi);
     }
 
     @Test
@@ -53,6 +59,7 @@ class EmotionAnalysisServiceTest {
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(result);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
         when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
@@ -65,6 +72,7 @@ class EmotionAnalysisServiceTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(AnalysisStatus.SUCCESS);
         assertThat(captor.getValue().getEmotionDetected()).isEqualTo("평온");
         assertThat(captor.getValue().getWarmMessages()).containsExactly("문장1", "문장2", "문장3");
+        assertThat(captor.getValue().getDeletedAt()).isNull();
     }
 
     @Test
@@ -94,6 +102,7 @@ class EmotionAnalysisServiceTest {
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(invalidResult, validResult);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
         when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
@@ -114,6 +123,7 @@ class EmotionAnalysisServiceTest {
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(invalidResult);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
         when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
@@ -132,6 +142,7 @@ class EmotionAnalysisServiceTest {
         EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenThrow(new RuntimeException("GPT 호출 실패"));
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
         when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
@@ -141,6 +152,64 @@ class EmotionAnalysisServiceTest {
         verify(emotionAnalyzer, times(1)).analyze("오늘 하루");
         assertThat(captor.getValue().getStatus()).isEqualTo(AnalysisStatus.FAILED);
         assertThat(captor.getValue().getFailureReason()).isEqualTo("GPT 호출 실패");
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 글의 이벤트면 GPT를 호출하지 않고 건너뛴다.")
+    void handle_withDeletedEntry_skipsAnalysis() {
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+
+        when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(false);
+
+        emotionAnalysisService.handle(event);
+
+        verify(emotionAnalyzer, never()).analyze(any());
+        verify(emotionAnalysisRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("분석 중에 글이 삭제되면 저장 후 재확인에서 방금 저장한 분석을 삭제한다.")
+    void handle_whenEntryDeletedDuringAnalysis_deletesSavedAnalysis() {
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionAnalysisResult result = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+
+        when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true, false); // 분석 전엔 있음 → 저장 후엔 삭제됨
+        when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(result);
+        ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
+        when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());
+
+        emotionAnalysisService.handle(event);
+
+        verify(emotionAnalysisRepository, times(2)).save(any());
+        assertThat(captor.getValue().getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("삭제 이벤트를 받으면 그 글의 분석을 소프트 삭제한다.")
+    void handleDeleted_withExistingAnalysis_softDeletesAnalysis() {
+        EmotionAnalysis existing = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
+                "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
+
+        when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.of(existing));
+
+        emotionAnalysisService.handle(EmotionEntryDeleted.of(1L, 2L, LocalDateTime.now()));
+
+        assertThat(existing.getDeletedAt()).isNotNull();
+        verify(emotionAnalysisRepository, never()).save(any()); // 트랜잭션 안 변경 감지로 반영 — save 불필요
+    }
+
+    @Test
+    @DisplayName("삭제 이벤트를 받았는데 분석이 아직 없으면 아무것도 하지 않는다.")
+    void handleDeleted_withNoAnalysis_doesNothing() {
+        when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+
+        emotionAnalysisService.handle(EmotionEntryDeleted.of(1L, 2L, LocalDateTime.now()));
+
+        verify(emotionAnalysisRepository, never()).save(any());
     }
 
     @Test

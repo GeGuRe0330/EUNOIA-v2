@@ -46,4 +46,13 @@ public class EmotionEntryController {
                 .map(EmotionEntryResponse::from)
                 .toList();
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "감정일기 삭제", description = "본인이 작성한 감정일기를 삭제한다(소프트 삭제). + 분석도 이벤트를 통해 함께 삭제")
+    public void delete(
+            @AuthenticationPrincipal AuthenticatedPrincipal principal,
+            @PathVariable Long id
+    ) {
+        emotionEntryService.delete(id, principal.getMemberId());
+    }
 }

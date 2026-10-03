@@ -5,6 +5,7 @@ import com.eunoia.journal.application.dto.EmotionEntryInfo;
 import com.eunoia.journal.application.dto.WriteEmotionEntryCommand;
 import com.eunoia.journal.domain.EmotionEntry;
 import com.eunoia.journal.domain.EmotionEntryRepository;
+import com.eunoia.journal.event.EmotionEntryDeleted;
 import com.eunoia.journal.event.EmotionEntryRecorded;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -33,15 +34,29 @@ public class EmotionEntryService {
     }
 
     @Transactional(readOnly = true)
-    public EmotionEntryInfo getById(Long entryId, Long requestId) {
+    public EmotionEntryInfo getById(Long entryId, Long requesterId) {
+        return EmotionEntryInfo.from(getOwnedEntry(entryId, requesterId));
+    }
+
+    @Transactional
+    public void delete(Long entryId, Long requesterId) {
+        EmotionEntry entry = getOwnedEntry(entryId, requesterId);
+
+        entry.delete();
+
+        eventPublisher.publishEvent(
+                EmotionEntryDeleted.of(entry.getId(), entry.getMemberId(), entry.getDeletedAt()));
+    }
+
+    private EmotionEntry getOwnedEntry(Long entryId, Long requesterId) {
         EmotionEntry entry = emotionEntryRepository.findById(entryId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 감정글이에요."));
 
-        if (!entry.isOwnedBy(requestId)) {
+        if (!entry.isOwnedBy(requesterId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "해당 감정글에 대한 접근 권한이 없어요.");
         }
 
-        return EmotionEntryInfo.from(entry);
+        return entry;
     }
 
     @Transactional(readOnly = true)

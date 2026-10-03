@@ -26,6 +26,17 @@ public class EmotionEntryQueryService implements EmotionEntryQueryApi {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsEntry(Long memberId, Long entryId) {
+        validateMemberId(memberId);
+        if (entryId == null) {
+            throw new IllegalArgumentException("entryId는 필수입니다.");
+        }
+
+        return emotionEntryRepository.existsByIdAndMemberId(entryId, memberId);
+    }
+
     private void validateMemberId(Long memberId) {
         if (memberId == null) {
             throw new IllegalArgumentException("memberId는 필수입니다.");
