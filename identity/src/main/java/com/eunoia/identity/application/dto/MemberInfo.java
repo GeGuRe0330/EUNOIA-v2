@@ -5,6 +5,7 @@ import com.eunoia.identity.domain.Member;
 import com.eunoia.identity.domain.Role;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record MemberInfo(
         Long id,
@@ -13,7 +14,8 @@ public record MemberInfo(
         Integer age,
         Gender gender,
         Role role,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        UUID profileImageId
 ) {
     public static MemberInfo from(Member member) {
         return new MemberInfo(
@@ -23,7 +25,8 @@ public record MemberInfo(
                 member.getAge(),
                 member.getGender(),
                 member.getRole(),
-                member.getCreatedAt()
+                member.getCreatedAt(),
+                member.getProfileImageId()
         );
     }
 }
