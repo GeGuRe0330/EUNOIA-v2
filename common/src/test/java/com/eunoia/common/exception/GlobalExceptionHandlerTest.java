@@ -3,8 +3,15 @@ package com.eunoia.common.exception;
 import com.eunoia.common.response.ApiResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import java.time.YearMonth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,5 +64,37 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody().error().message()).isEqualTo("서버에 오류가 발생했어요.");
+    }
+
+    @Test
+    @DisplayName("요청 값 타입 변환에 실패하면 Spring 기본 문구 대신 해요체 문구와 필드 이름으로 400을 응답한다.")
+    void handleTypeMismatch_returnsKoreanMessageWithFieldName() {
+        MethodArgumentTypeMismatchException e = new MethodArgumentTypeMismatchException(
+                "abc", YearMonth.class, "yearMonth", null, new IllegalArgumentException("parse failed"));
+
+        ResponseEntity<Object> response = handler.handleTypeMismatch(
+                e, new HttpHeaders(), HttpStatus.BAD_REQUEST, new ServletWebRequest(new MockHttpServletRequest()));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
+        assertThat(body.success()).isFalse();
+        assertThat(body.error().message()).isEqualTo("요청 값의 형식이 올바르지 않아요.");
+        assertThat(body.error().errors()).singleElement()
+                .satisfies(detail -> assertThat(detail.field()).isEqualTo("yearMonth"));
+    }
+
+    @Test
+    @DisplayName("필수 요청 파라미터가 없으면 Spring 기본 문구 대신 해요체 문구와 파라미터 이름으로 400을 응답한다.")
+    void handleMissingServletRequestParameter_returnsKoreanMessageWithParameterName() {
+        MissingServletRequestParameterException e = new MissingServletRequestParameterException("yearMonth", "YearMonth");
+
+        ResponseEntity<Object> response = handler.handleMissingServletRequestParameter(
+                e, new HttpHeaders(), HttpStatus.BAD_REQUEST, new ServletWebRequest(new MockHttpServletRequest()));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
+        assertThat(body.error().message()).isEqualTo("필요한 요청 값이 빠졌어요.");
+        assertThat(body.error().errors()).singleElement()
+                .satisfies(detail -> assertThat(detail.field()).isEqualTo("yearMonth"));
     }
 }

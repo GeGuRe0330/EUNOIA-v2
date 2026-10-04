@@ -3,6 +3,7 @@ package com.eunoia.analysis.infrastructure.repository;
 import com.eunoia.analysis.domain.AnalysisStatus;
 import com.eunoia.analysis.domain.EmotionAnalysis;
 import com.eunoia.analysis.domain.EmotionAnalysisRepository;
+import com.eunoia.analysis.domain.EntryDateAverageScore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -40,5 +41,15 @@ public class EmotionAnalysisRepositoryAdapter implements EmotionAnalysisReposito
     @Override
     public List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(Long memberId, AnalysisStatus status) {
         return jpaRepository.findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(memberId, status);
+    }
+
+    @Override
+    public List<EmotionAnalysis> findByMemberIdAndEntryIdInAndStatus(Long memberId, List<Long> entryIds, AnalysisStatus status) {
+        return jpaRepository.findByMemberIdAndEntryIdInAndStatus(memberId, entryIds, status);
+    }
+
+    @Override
+    public List<EntryDateAverageScore> averageScoreDailyByMemberIdAndPeriod(Long memberId, AnalysisStatus status, LocalDate from, LocalDate to) {
+        return jpaRepository.averageScoreDailyByMemberIdAndPeriod(memberId, status, from, to);
     }
 }

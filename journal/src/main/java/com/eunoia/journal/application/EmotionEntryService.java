@@ -13,8 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 @Service
 @RequiredArgsConstructor
 public class EmotionEntryService {
@@ -57,12 +55,5 @@ public class EmotionEntryService {
         }
 
         return entry;
-    }
-
-    @Transactional(readOnly = true)
-    public List<EmotionEntryInfo> getMyEntries(Long memberId) {
-        return emotionEntryRepository.findByMemberIdOrderByEntryDateDesc(memberId).stream()
-                .map(EmotionEntryInfo::from)
-                .toList();
     }
 }

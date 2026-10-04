@@ -18,6 +18,7 @@ dependencies {
     implementation project(':journal')
     implementation project(':analysis')
     implementation project(':insight')
+    implementation project(':records')
 
     implementation 'org.springframework.modulith:spring-modulith-starter-core'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
