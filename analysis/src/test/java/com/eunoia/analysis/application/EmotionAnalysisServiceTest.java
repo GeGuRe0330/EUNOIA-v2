@@ -53,12 +53,13 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("새로운 엔트리에 대한 이벤트를 받으면 GPT를 호출해서 분석 결과를 저장한다.")
     void handle_withNewEntry_savesAnalysis() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
         EmotionAnalysisResult result = new EmotionAnalysisResult(
                 "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.of("오늘 하루"));
         when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(result);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
@@ -78,7 +79,7 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("이미 분석이 존재하는 엔트리는 GPT를 호출하지 않고 건너뛴다.")
     void handle_withExistingAnalysis_skipsProcessing() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
         EmotionAnalysis existing = EmotionAnalysis.create(1L, 2L, ENTRY_DATE, "평온", "평온,안정",
                 "요약", "흐름", "감정요약", 80.0, 90, "충분함", List.of("문장1", "문장2", "문장3"));
 
@@ -93,7 +94,7 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("도메인 검증에 한 번 실패해도 재시도해서 성공하면 SUCCESS로 저장한다.")
     void handle_whenValidationFailsOnce_retriesAndSucceeds() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
         EmotionAnalysisResult invalidResult = new EmotionAnalysisResult(
                 "평온", "평온,안정", "요약", "흐름", "감정요약", -1.0, 90, "충분함",
                 List.of("문장1", "문장2", "문장3"));
@@ -102,6 +103,7 @@ class EmotionAnalysisServiceTest {
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.of("오늘 하루"));
         when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(invalidResult, validResult);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
@@ -117,12 +119,13 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("도메인 검증에 최대 횟수만큼 계속 실패하면 FAILED로 저장한다.")
     void handle_whenValidationAlwaysFails_savesFailedAfterMaxAttempts() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
         EmotionAnalysisResult invalidResult = new EmotionAnalysisResult(
                 "평온", "평온,안정", "요약", "흐름", "감정요약", -1.0, 90, "충분함",
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.of("오늘 하루"));
         when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(invalidResult);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
@@ -139,9 +142,10 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("GPT 호출 자체가 실패하면 재시도 없이 즉시 FAILED로 저장한다.")
     void handle_whenAnalyzerThrowsRuntimeException_savesFailedImmediately() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.of("오늘 하루"));
         when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true);
         when(emotionAnalyzer.analyze("오늘 하루")).thenThrow(new RuntimeException("GPT 호출 실패"));
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
@@ -155,12 +159,12 @@ class EmotionAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("이미 삭제된 글의 이벤트면 GPT를 호출하지 않고 건너뛴다.")
+    @DisplayName("본문을 조회할 수 없으면(이미 삭제된 글) GPT를 호출하지 않고 건너뛴다.")
     void handle_withDeletedEntry_skipsAnalysis() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
-        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(false);
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.empty());
 
         emotionAnalysisService.handle(event);
 
@@ -171,13 +175,14 @@ class EmotionAnalysisServiceTest {
     @Test
     @DisplayName("분석 중에 글이 삭제되면 저장 후 재확인에서 방금 저장한 분석을 삭제한다.")
     void handle_whenEntryDeletedDuringAnalysis_deletesSavedAnalysis() {
-        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, "오늘 하루", ENTRY_DATE);
+        EmotionEntryRecorded event = EmotionEntryRecorded.of(1L, 2L, ENTRY_DATE);
         EmotionAnalysisResult result = new EmotionAnalysisResult(
                 "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
                 List.of("문장1", "문장2", "문장3"));
 
         when(emotionAnalysisRepository.findByEntryId(1L)).thenReturn(Optional.empty());
-        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(true, false); // 분석 전엔 있음 → 저장 후엔 삭제됨
+        when(emotionEntryQueryApi.findContent(2L, 1L)).thenReturn(Optional.of("오늘 하루")); // 분석 전엔 있음
+        when(emotionEntryQueryApi.existsEntry(2L, 1L)).thenReturn(false); // 저장 후엔 삭제됨
         when(emotionAnalyzer.analyze("오늘 하루")).thenReturn(result);
         ArgumentCaptor<EmotionAnalysis> captor = ArgumentCaptor.forClass(EmotionAnalysis.class);
         when(emotionAnalysisRepository.save(captor.capture())).thenAnswer(invocation -> captor.getValue());

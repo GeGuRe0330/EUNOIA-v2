@@ -2,8 +2,11 @@ package com.eunoia.journal.query;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface EmotionEntryQueryApi {
+    Optional<String> findContent(Long memberId, Long entryId);
+
     List<EmotionEntryContent> findContentsByEntryIds(Long memberId, List<Long> entryIds);
 
     boolean existsEntry(Long memberId, Long entryId);

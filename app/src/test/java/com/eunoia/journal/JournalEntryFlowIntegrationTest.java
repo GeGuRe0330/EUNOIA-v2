@@ -106,7 +106,7 @@ public class JournalEntryFlowIntegrationTest {
         assertThat(events.stream(EmotionEntryRecorded.class))
                 .singleElement()
                 .satisfies(e -> {
-                    assertThat(e.content()).isEqualTo("오늘은 맑았다");
+                    assertThat(e.entryId()).isEqualTo(entryId.longValue());
                     assertThat(e.entryDate()).isEqualTo(LocalDate.of(2026, 9, 20));
                 });
     }
