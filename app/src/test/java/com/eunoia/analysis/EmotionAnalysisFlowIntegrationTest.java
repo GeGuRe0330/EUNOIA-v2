@@ -28,6 +28,8 @@ import java.util.function.BooleanSupplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -390,5 +392,26 @@ public class EmotionAnalysisFlowIntegrationTest {
         mockMvc.perform(get("/api/v1/analyses/latest").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("긴 본문(1200자)도 저장되고 분석까지 완료되며, 분석은 journal에서 조회한 본문으로 GPT를 호출한다.")
+    void writeLongEntry_isSavedAndAnalyzed() throws Exception {
+        // event_publication.serialized_event는 ddl-auto 기본 VARCHAR(255) — 이벤트에 본문이 다시 들어가면 여기서 500(05.troubleshooting/30)
+        EmotionAnalysisResult stub = new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+        when(structuredPromptClient.call(anyString(), any())).thenReturn(stub);
+        String longContent = "긴글시작-" + "오늘 하루를 천천히 돌아본다. ".repeat(70);
+        assertThat(longContent.length()).isGreaterThan(1000);
+
+        MockHttpSession session = signupAndLogin("long-entry@test.com", "rawPassword1!", "긴글", 20, "FEMALE");
+        Long entryId = writeEntry(session, longContent, "2026-09-20");
+
+        waitForAnalysisReady(session, entryId);
+        mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+        verify(structuredPromptClient).call(contains("긴글시작-"), any());
     }
 }

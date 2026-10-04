@@ -39,11 +39,12 @@ public class EmotionAnalysisService {
         if (emotionAnalysisRepository.findByEntryId(event.entryId()).isPresent()) {
             return;
         }
-        if (!emotionEntryQueryApi.existsEntry(event.memberId(), event.entryId())) {
+        Optional<String> content = emotionEntryQueryApi.findContent(event.memberId(),  event.entryId());
+        if (content.isEmpty()) {
             return;
         }
 
-        EmotionAnalysis saved = emotionAnalysisRepository.save(analyze(event));
+        EmotionAnalysis saved = emotionAnalysisRepository.save(analyze(event, content.orElseThrow()));
 
         if (!emotionEntryQueryApi.existsEntry(event.memberId(), event.entryId())) {
             saved.delete();
@@ -57,11 +58,11 @@ public class EmotionAnalysisService {
                 .ifPresent(EmotionAnalysis::delete);
     }
 
-    private EmotionAnalysis analyze(EmotionEntryRecorded event) {
+    private EmotionAnalysis analyze(EmotionEntryRecorded event, String content) {
         for (int attempt = 1; attempt <= MAX_VALIDATION_ATTEMPTS; attempt++) {
             EmotionAnalysisResult result;
             try {
-                result = emotionAnalyzer.analyze(event.content());
+                result = emotionAnalyzer.analyze(content);
             } catch (RuntimeException e) {
                 return failedAnalysis(event, e);
             }

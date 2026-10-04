@@ -26,7 +26,7 @@ public class EmotionEntryService {
                 EmotionEntry.write(command.memberId(), command.content(), command.entryDate()));
 
         eventPublisher.publishEvent(
-                EmotionEntryRecorded.of(entry.getId(), entry.getMemberId(), entry.getContent(), entry.getEntryDate()));
+                EmotionEntryRecorded.of(entry.getId(), entry.getMemberId(), entry.getEntryDate()));
 
         return EmotionEntryInfo.from(entry);
     }

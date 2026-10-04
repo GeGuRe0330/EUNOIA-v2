@@ -15,12 +15,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class EmotionEntryQueryService implements EmotionEntryQueryApi {
 
     private final EmotionEntryRepository emotionEntryRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findContent(Long memberId, Long entryId) {
+        validateMemberId(memberId);
+        if (entryId == null) {
+            throw new IllegalArgumentException("entryId는 필수입니다.");
+        }
+        return emotionEntryRepository.findById(entryId)
+                .filter(entry -> entry.isOwnedBy(memberId))
+                .map(EmotionEntry::getContent);
+    }
 
     @Override
     @Transactional(readOnly = true)

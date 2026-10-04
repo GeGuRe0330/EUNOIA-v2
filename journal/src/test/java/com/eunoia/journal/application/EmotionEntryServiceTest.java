@@ -66,7 +66,6 @@ class EmotionEntryServiceTest {
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().memberId()).isEqualTo(1L);
-        assertThat(eventCaptor.getValue().content()).isEqualTo("오늘 하루");
         assertThat(eventCaptor.getValue().entryDate()).isEqualTo(entryDate);
     }
 
