@@ -22,7 +22,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -57,6 +59,29 @@ public class MemberFlowIntegrationTest {
                         """.formatted(email, password, nickname, age, gender)))
                 .andExpect(status().isOk());
         jdbcTemplate.update("UPDATE members SET status = 'ACTIVE' WHERE email = ?", email);
+    }
+
+    private MockHttpSession login(String email, String password) throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .param("username", email)
+                        .param("password", password))
+                .andExpect(status().isOk())
+                .andReturn();
+        return (MockHttpSession) loginResult.getRequest().getSession(false);
+    }
+
+    private void changePassword(MockHttpSession session, String currentPassword, String newPassword) throws Exception {
+        mockMvc.perform(put("/api/v1/members/me/password")
+                        .session(session)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"currentPassword":"%s","newPassword":"%s"}
+                        """.formatted(currentPassword, newPassword)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test
@@ -191,5 +216,173 @@ public class MemberFlowIntegrationTest {
                 .andExpect(jsonPath("$.error.message").value("잘못된 요청이에요."))
                 .andExpect(jsonPath("$.error.errors[0].field").value("email"))
                 .andExpect(jsonPath("$.error.errors[0].message").exists());
+    }
+
+    @Test
+    @DisplayName("회원가입·로그인·내 정보 응답에 가입 시각(createdAt)이 포함된다.")
+    void memberResponses_includeCreatedAt() throws Exception {
+        mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"email":"created@test.com","password":"rawPassword1!","nickname":"가입시각","age":20,"gender":"NONE"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdAt").isNotEmpty());
+        jdbcTemplate.update("UPDATE members SET status = 'ACTIVE' WHERE email = ?", "created@test.com");
+
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .param("username", "created@test.com")
+                        .param("password", "rawPassword1!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdAt").isNotEmpty())
+                .andReturn();
+        MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdAt").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("프로필을 수정하면 응답과 이후 내 정보 조회에 새 닉네임·나이·성별이 반영된다(이메일은 그대로).")
+    void updateProfile_changesProfile_andIsVisibleInMe() throws Exception {
+        signup("profile@test.com", "rawPassword1!", "개구리", 27, "NONE");
+        MockHttpSession session = login("profile@test.com", "rawPassword1!");
+
+        mockMvc.perform(patch("/api/v1/members/me")
+                        .session(session)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"nickname":"두꺼비","gender":"FEMALE","age":30}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nickname").value("두꺼비"))
+                .andExpect(jsonPath("$.data.age").value(30))
+                .andExpect(jsonPath("$.data.gender").value("FEMALE"));
+
+        // 세션 스냅샷이 아니라 DB에서 다시 읽는 내 정보에 반영됐는지(= 변경 감지로 실제 저장됐는지)
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("profile@test.com"))
+                .andExpect(jsonPath("$.data.nickname").value("두꺼비"))
+                .andExpect(jsonPath("$.data.age").value(30))
+                .andExpect(jsonPath("$.data.gender").value("FEMALE"));
+    }
+
+    @Test
+    @DisplayName("프로필 수정 값이 잘못되면 400과 필드별 오류(errors)를 반환하고 프로필은 바뀌지 않는다.")
+    void updateProfile_withInvalidValues_returnsFieldErrors() throws Exception {
+        signup("invalidprofile@test.com", "rawPassword1!", "그대로", 27, "NONE");
+        MockHttpSession session = login("invalidprofile@test.com", "rawPassword1!");
+
+        mockMvc.perform(patch("/api/v1/members/me").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"nickname":"두꺼비","gender":"FEMALE","age":-1}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.errors[0].field").value("age"));
+        mockMvc.perform(patch("/api/v1/members/me").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"nickname":" ","gender":"FEMALE","age":30}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.errors[0].field").value("nickname"));
+        mockMvc.perform(patch("/api/v1/members/me").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"nickname":"두꺼비","age":30}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.errors[0].field").value("gender"));
+
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(jsonPath("$.data.nickname").value("그대로"))
+                .andExpect(jsonPath("$.data.age").value(27));
+    }
+
+    @Test
+    @DisplayName("회원가입도 음수 나이는 프로필 수정과 같은 필드별 오류(errors)로 400을 반환한다.")
+    void signup_withNegativeAge_returnsFieldError() throws Exception {
+        mockMvc.perform(post("/api/v1/members/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"email":"negative@test.com","password":"rawPassword1!","nickname":"음수","age":-1,"gender":"FEMALE"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.errors[0].field").value("age"));
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 틀리면 401이 아닌 400 + 해요체 문구이고, 세션과 기존 비밀번호는 그대로다.")
+    void changePassword_withWrongCurrentPassword_returns400AndKeepsSession() throws Exception {
+        signup("wrongpw@test.com", "rawPassword1!", "틀림", 20, "MALE");
+        MockHttpSession session = login("wrongpw@test.com", "rawPassword1!");
+
+        mockMvc.perform(put("/api/v1/members/me/password")
+                        .session(session)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"currentPassword":"notMyPassword","newPassword":"newPassword1!"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.message").value("지금 쓰는 비밀번호가 맞지 않아요."));
+
+        // 로그인 화면으로 쫓겨나지 않음 — 같은 세션이 여전히 유효
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isOk());
+        login("wrongpw@test.com", "rawPassword1!");
+    }
+
+    @Test
+    @DisplayName("비밀번호를 바꾸면 세션은 유지되고, 같은 세션에서 연달아 바꿔도 되며, 새 비밀번호로만 로그인된다.")
+    void changePassword_twiceInSameSession_thenOnlyLatestPasswordWorks() throws Exception {
+        signup("changepw@test.com", "firstPassword1!", "변경", 20, "FEMALE");
+        MockHttpSession session = login("changepw@test.com", "firstPassword1!");
+
+        changePassword(session, "firstPassword1!", "secondPassword1!");
+        mockMvc.perform(get("/api/v1/members/me").session(session))
+                .andExpect(status().isOk());
+
+        // 같은 세션에서 두 번째 변경 — 세션 스냅샷의 낡은 해시(first)가 아니라 DB의 최신 해시(second)와 비교해야 성공
+        changePassword(session, "secondPassword1!", "thirdPassword1!");
+
+        login("changepw@test.com", "thirdPassword1!");
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .param("username", "changepw@test.com")
+                        .param("password", "firstPassword1!"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .param("username", "changepw@test.com")
+                        .param("password", "secondPassword1!"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("CSRF 토큰 없이 프로필 수정·비밀번호 변경을 보내면 403이다.")
+    void profileAndPasswordChange_withoutCsrf_returns403() throws Exception {
+        signup("csrfprofile@test.com", "rawPassword1!", "토큰", 20, "NONE");
+        MockHttpSession session = login("csrfprofile@test.com", "rawPassword1!");
+
+        mockMvc.perform(patch("/api/v1/members/me").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"nickname":"두꺼비","gender":"FEMALE","age":30}
+                        """))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/v1/members/me/password").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"currentPassword":"rawPassword1!","newPassword":"newPassword1!"}
+                        """))
+                .andExpect(status().isForbidden());
     }
 }

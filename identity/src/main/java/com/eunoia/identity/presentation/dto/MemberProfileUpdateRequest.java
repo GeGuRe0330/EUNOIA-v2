@@ -1,20 +1,17 @@
 package com.eunoia.identity.presentation.dto;
 
-import com.eunoia.identity.application.dto.RegisterMemberCommand;
+import com.eunoia.identity.application.dto.UpdateProfileCommand;
 import com.eunoia.identity.domain.Gender;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
-public record MemberSignupRequest(
-        @NotBlank @Email String email,
-        @NotBlank String password,
+public record MemberProfileUpdateRequest(
         @NotBlank String nickname,
         @NotNull @PositiveOrZero Integer age,
         @NotNull Gender gender
-) {
-    public RegisterMemberCommand toCommand() {
-        return new RegisterMemberCommand(email, password, nickname, age, gender);
+        ) {
+    public UpdateProfileCommand toCommand() {
+        return new UpdateProfileCommand(nickname, age, gender);
     }
 }
