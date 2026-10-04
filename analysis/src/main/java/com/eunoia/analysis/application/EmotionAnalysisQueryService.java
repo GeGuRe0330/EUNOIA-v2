@@ -2,8 +2,10 @@ package com.eunoia.analysis.application;
 
 import com.eunoia.analysis.domain.AnalysisStatus;
 import com.eunoia.analysis.domain.EmotionAnalysisRepository;
+import com.eunoia.analysis.query.DailyAverageScore;
 import com.eunoia.analysis.query.EmotionAnalysisCandidate;
 import com.eunoia.analysis.query.EmotionAnalysisQueryApi;
+import com.eunoia.analysis.query.EntryEmotion;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,31 @@ public class EmotionAnalysisQueryService implements EmotionAnalysisQueryApi {
                         analysis.getEntryDate(),
                         analysis.getEntryClarityScore(),
                         analysis.getEntryClarityReason()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EntryEmotion> findEmotionsByEntryIds(Long memberId, List<Long> entryIds) {
+        if (memberId == null) {
+            throw new IllegalArgumentException("memberId는 필수입니다.");
+        }
+        if (entryIds == null || entryIds.isEmpty()) {
+            return List.of();
+        }
+        return emotionAnalysisRepository
+                .findByMemberIdAndEntryIdInAndStatus(memberId, entryIds, AnalysisStatus.SUCCESS).stream()
+                .map(analysis -> new EntryEmotion(analysis.getEntryId(), analysis.getEmotionDetected()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DailyAverageScore> findDailyAverageScores(Long memberId, LocalDate from, LocalDate to) {
+        validateQueryParameters(memberId, from, to);
+        return emotionAnalysisRepository
+                .averageScoreDailyByMemberIdAndPeriod(memberId, AnalysisStatus.SUCCESS, from, to).stream()
+                .map(score -> new DailyAverageScore(score.entryDate(), score.averageScore()))
                 .toList();
     }
 

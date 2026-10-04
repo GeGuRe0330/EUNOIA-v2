@@ -5,6 +5,10 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "members")
@@ -39,9 +43,13 @@ public class Member extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 36)
+    private UUID profileImageId;
+
     private Member(String email, String encodedPassword, String nickname, Integer age, Gender gender) {
         validateEmail(email);
-        validatePassword(encodedPassword);
+        validateEncodedPassword(encodedPassword);
         validateNickname(nickname);
         validateAge(age);
         validateGender(gender);
@@ -66,6 +74,33 @@ public class Member extends BaseEntity {
         this.status = Status.ACTIVE;
     }
 
+    public void updateProfile(String nickname, Integer age, Gender gender) {
+        validateNickname(nickname);
+        validateAge(age);
+        validateGender(gender);
+
+        this.nickname = nickname;
+        this.age = age;
+        this.gender = gender;
+    }
+
+    public void changePassword(String encodedPassword) {
+        validateEncodedPassword(encodedPassword);
+
+        this.password = encodedPassword;
+    }
+
+    public void changeProfileImage(UUID imageId) {
+        if (imageId == null) {
+            throw new IllegalArgumentException("프로필 이미지 키는 필수입니다.");
+        }
+        this.profileImageId = imageId;
+    }
+
+    public void removeProfileImage() {
+        this.profileImageId = null;
+    }
+
     private void validateGender(Gender gender) {
         if (gender == null) {
             throw new IllegalArgumentException("성별은 필수입니다.");
@@ -88,7 +123,7 @@ public class Member extends BaseEntity {
         }
     }
 
-    private void validatePassword(String encodedPassword) {
+    private void validateEncodedPassword(String encodedPassword) {
         if (encodedPassword == null || encodedPassword.isBlank()) {
             throw new IllegalArgumentException("비밀번호는 필수입니다.");
         }

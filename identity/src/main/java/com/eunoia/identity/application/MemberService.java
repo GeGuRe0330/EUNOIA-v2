@@ -1,8 +1,10 @@
 package com.eunoia.identity.application;
 
 import com.eunoia.common.exception.BusinessException;
+import com.eunoia.identity.application.dto.ChangePasswordCommand;
 import com.eunoia.identity.application.dto.MemberInfo;
 import com.eunoia.identity.application.dto.RegisterMemberCommand;
+import com.eunoia.identity.application.dto.UpdateProfileCommand;
 import com.eunoia.identity.domain.Member;
 import com.eunoia.identity.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,8 +34,27 @@ public class MemberService {
 
     @Transactional(readOnly = true)
     public MemberInfo getMe(Long memberId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원이에요."));
+        return MemberInfo.from(getMember(memberId));
+    }
+
+    @Transactional
+    public MemberInfo updateProfile(Long memberId, UpdateProfileCommand command) {
+        Member member = getMember(memberId);
+        member.updateProfile(command.nickname(),  command.age(), command.gender());
         return MemberInfo.from(member);
+    }
+
+    @Transactional
+    public void changePassword(Long memberId, ChangePasswordCommand command) {
+        Member member = getMember(memberId);
+        if (!passwordEncoder.matches(command.currentPassword(), member.getPassword())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "지금 쓰는 비밀번호가 맞지 않아요.");
+        }
+        member.changePassword(passwordEncoder.encode(command.newPassword()));
+    }
+
+    private Member getMember(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "존재하지 않는 회원이에요."));
     }
 }

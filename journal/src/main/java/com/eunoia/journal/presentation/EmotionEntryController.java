@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/emotion-entries")
@@ -39,11 +37,12 @@ public class EmotionEntryController {
         return EmotionEntryResponse.from(emotionEntryService.getById(id, principal.getMemberId()));
     }
 
-    @GetMapping
-    @Operation(summary = "감정일기 목록 조회", description = "본인이 작성한 감정일기 목록을 최신순으로 조회한다.")
-    public List<EmotionEntryResponse> getMyEntries(@AuthenticationPrincipal AuthenticatedPrincipal principal) {
-        return emotionEntryService.getMyEntries(principal.getMemberId()).stream()
-                .map(EmotionEntryResponse::from)
-                .toList();
+    @DeleteMapping("/{id}")
+    @Operation(summary = "감정일기 삭제", description = "본인이 작성한 감정일기를 삭제한다(소프트 삭제). + 분석도 이벤트를 통해 함께 삭제")
+    public void delete(
+            @AuthenticationPrincipal AuthenticatedPrincipal principal,
+            @PathVariable Long id
+    ) {
+        emotionEntryService.delete(id, principal.getMemberId());
     }
 }

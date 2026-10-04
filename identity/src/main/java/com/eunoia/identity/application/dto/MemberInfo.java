@@ -4,13 +4,18 @@ import com.eunoia.identity.domain.Gender;
 import com.eunoia.identity.domain.Member;
 import com.eunoia.identity.domain.Role;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 public record MemberInfo(
         Long id,
         String email,
         String nickname,
         Integer age,
         Gender gender,
-        Role role
+        Role role,
+        LocalDateTime createdAt,
+        UUID profileImageId
 ) {
     public static MemberInfo from(Member member) {
         return new MemberInfo(
@@ -19,7 +24,9 @@ public record MemberInfo(
                 member.getNickname(),
                 member.getAge(),
                 member.getGender(),
-                member.getRole()
+                member.getRole(),
+                member.getCreatedAt(),
+                member.getProfileImageId()
         );
     }
 }

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -65,5 +66,24 @@ class EmotionEntryTest {
         EmotionEntry entry = EmotionEntry.write(1L, "오늘 하루", LocalDate.now());
 
         assertThat(entry.isOwnedBy(2L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("새로 작성한 글은 삭제되지 않은 상태다.")
+    void write_newEntry_isNotDeleted() {
+        EmotionEntry entry = EmotionEntry.write(1L, "오늘 하루", LocalDate.now());
+
+        assertThat(entry.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("삭제하면 삭제 시각이 기록된다.")
+    void delete_setDeletedAt() {
+        EmotionEntry entry = EmotionEntry.write(1L, "오늘 하루", LocalDate.now());
+        LocalDateTime before = LocalDateTime.now();
+
+        entry.delete();
+
+        assertThat(entry.getDeletedAt()).isBetween(before, LocalDateTime.now());
     }
 }

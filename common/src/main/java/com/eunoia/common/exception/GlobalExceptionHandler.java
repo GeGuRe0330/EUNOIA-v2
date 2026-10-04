@@ -4,12 +4,16 @@ import com.eunoia.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.List;
@@ -93,6 +97,41 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("[{}] {}", HttpStatus.BAD_REQUEST.value(), ex.getMessage());
         ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("요청 형식이 올바르지 않아요.", null));
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    // 요청 파라미터·경로 변수의 타입 변환 실패(예: yearMonth=abc, from=2026-13-40, page=abc) — 기본 처리는 Spring 영어 문구를 그대로 내보낸다
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex,
+                                                        HttpHeaders headers,
+                                                        HttpStatusCode status,
+                                                        WebRequest request) {
+        log.warn("[{}] {}", HttpStatus.BAD_REQUEST.value(), ex.getMessage());
+        String field = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName() : ex.getPropertyName();
+        ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("요청 값의 형식이 올바르지 않아요.",
+                List.of(new ApiResponse.ApiError.FieldErrorDetail(field, "형식이 올바르지 않아요."))));
+        return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    // 필수 요청 파라미터 누락(예: /calendar에 yearMonth 없음) — 기본 처리는 Spring 영어 문구를 그대로 내보낸다
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
+                                                                          HttpHeaders headers,
+                                                                          HttpStatusCode status,
+                                                                          WebRequest request) {
+        log.warn("[{}] {}", HttpStatus.BAD_REQUEST.value(), ex.getMessage());
+        ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("필요한 요청 값이 빠졌어요.",
+                List.of(new ApiResponse.ApiError.FieldErrorDetail(ex.getParameterName(), "필수 값이에요."))));
+        return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+                                                                          HttpHeaders headers,
+                                                                          HttpStatusCode status,
+                                                                          WebRequest request) {
+        log.warn("[{}] {}", HttpStatus.PAYLOAD_TOO_LARGE.value(), ex.getMessage());
+        ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("사진은 10MB까지 올릴 수 있어요.", null));
+        return handleExceptionInternal(ex, body, headers, HttpStatus.PAYLOAD_TOO_LARGE, request);
     }
 
     @Override

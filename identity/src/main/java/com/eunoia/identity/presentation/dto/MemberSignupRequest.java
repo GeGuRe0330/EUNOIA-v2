@@ -5,12 +5,13 @@ import com.eunoia.identity.domain.Gender;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public record MemberSignupRequest(
         @NotBlank @Email String email,
         @NotBlank String password,
         @NotBlank String nickname,
-        @NotNull Integer age,
+        @NotNull @PositiveOrZero Integer age,
         @NotNull Gender gender
 ) {
     public RegisterMemberCommand toCommand() {
