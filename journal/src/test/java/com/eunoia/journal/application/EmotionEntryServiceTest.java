@@ -16,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,19 +99,5 @@ class EmotionEntryServiceTest {
 
         assertThat(result.memberId()).isEqualTo(1L);
         assertThat(result.content()).isEqualTo("오늘 하루");
-    }
-
-    @Test
-    @DisplayName("목록을 조회하면 매핑된 목록을 반환한다.")
-    void getMyEntries_returnMappedList() {
-        EmotionEntry entry1 = EmotionEntry.write(1L, "첫째 날", LocalDate.of(2026, 9, 19));
-        EmotionEntry entry2 = EmotionEntry.write(1L, "둘째 날", LocalDate.of(2026, 9 ,20));
-        when(emotionEntryRepository.findByMemberIdOrderByEntryDateDesc(1L)).thenReturn(List.of(entry2, entry1));
-
-        List<EmotionEntryInfo> result = emotionEntryService.getMyEntries(1L);
-
-        assertThat(result).hasSize(2);
-        assertThat(result.get(0).content()).isEqualTo("둘째 날");
-        assertThat(result.get(1).content()).isEqualTo("첫째 날");
     }
 }

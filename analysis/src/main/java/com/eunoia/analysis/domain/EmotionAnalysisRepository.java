@@ -15,4 +15,8 @@ public interface EmotionAnalysisRepository {
     Optional<EmotionAnalysis> findTopByMemberIdOrderByEntryDateDescEntryIdDesc(Long memberId);
 
     List<EmotionAnalysis> findTop7ByMemberIdAndStatusOrderByEntryDateDescEntryIdDesc(Long memberId, AnalysisStatus status);
+
+    List<EmotionAnalysis> findByMemberIdAndEntryIdInAndStatus(Long memberId, List<Long> entryIds, AnalysisStatus status);
+
+    List<EntryDateAverageScore> averageScoreDailyByMemberIdAndPeriod(Long memberId, AnalysisStatus status, LocalDate from, LocalDate to);
 }

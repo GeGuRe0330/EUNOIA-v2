@@ -155,21 +155,6 @@ public class JournalEntryFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("목록을 조회하면 본인이 작성한 감정일기만 반환한다.")
-    void getMyEntries_returnsOnlyOwnEntries() throws Exception {
-        MockHttpSession session = signupAndLogin("list@test.com", "rawPassword1!", "목록", 20, "FEMALE");
-        writeEntry(session, "첫째 날", "2026-09-19");
-        writeEntry(session, "둘째 날", "2026-09-20");
-        MockHttpSession otherSession = signupAndLogin("otherlist@test.com", "rawPassword1!", "타인목록", 20, "MALE");
-        writeEntry(otherSession, "남의 글", "2026-09-20");
-
-        mockMvc.perform(get("/api/v1/emotion-entries").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[*].content", org.hamcrest.Matchers.containsInAnyOrder("첫째 날", "둘째 날")));
-    }
-
-    @Test
     @DisplayName("본인 글을 삭제하면 행은 남고 삭제 시각이 기록되며, 이후 단건·목록 조회에서 사라지고 삭제 이벤트가 발행된다.")
     void delete_withOwnerSession_softDeletesAndHidesEntry(ApplicationEvents events) throws Exception {
         MockHttpSession session = signupAndLogin("delete@test.com", "rawPassword1!", "삭제", 20, "FEMALE");
@@ -193,10 +178,11 @@ public class JournalEntryFlowIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.message").value("존재하지 않는 감정글이에요."));
 
+        // 목록 엔드포인트는 records 모듈 소유(⑯) — 응답은 페이지 객체
         mockMvc.perform(get("/api/v1/emotion-entries").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].content").value("남길 글"));
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].content").value("남길 글"));
 
         assertThat(events.stream(EmotionEntryDeleted.class))
                 .singleElement()
