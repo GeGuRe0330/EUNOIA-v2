@@ -41,7 +41,7 @@ public class Member extends BaseEntity {
 
     private Member(String email, String encodedPassword, String nickname, Integer age, Gender gender) {
         validateEmail(email);
-        validatePassword(encodedPassword);
+        validateEncodedPassword(encodedPassword);
         validateNickname(nickname);
         validateAge(age);
         validateGender(gender);
@@ -66,6 +66,22 @@ public class Member extends BaseEntity {
         this.status = Status.ACTIVE;
     }
 
+    public void updateProfile(String nickname, Integer age, Gender gender) {
+        validateNickname(nickname);
+        validateAge(age);
+        validateGender(gender);
+
+        this.nickname = nickname;
+        this.age = age;
+        this.gender = gender;
+    }
+
+    public void changePassword(String encodedPassword) {
+        validateEncodedPassword(encodedPassword);
+
+        this.password = encodedPassword;
+    }
+
     private void validateGender(Gender gender) {
         if (gender == null) {
             throw new IllegalArgumentException("성별은 필수입니다.");
@@ -88,7 +104,7 @@ public class Member extends BaseEntity {
         }
     }
 
-    private void validatePassword(String encodedPassword) {
+    private void validateEncodedPassword(String encodedPassword) {
         if (encodedPassword == null || encodedPassword.isBlank()) {
             throw new IllegalArgumentException("비밀번호는 필수입니다.");
         }
