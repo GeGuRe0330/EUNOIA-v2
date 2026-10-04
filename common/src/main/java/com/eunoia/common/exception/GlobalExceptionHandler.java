@@ -42,10 +42,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
         HttpStatus status = e.getStatus();
-        if (e.getCause() != null) {
+        if (status.is5xxServerError()) {
             log.warn("[{}] {}", status.value(), e.getMessage(), e);
         } else {
-            log.warn("[{}] {}", status.value(), e.getMessage());
+            log.debug("[{}] {}", status.value(), e.getMessage());
         }
         return fail(status, e.getMessage());
     }
