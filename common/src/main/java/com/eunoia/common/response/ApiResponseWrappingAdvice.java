@@ -2,6 +2,7 @@ package com.eunoia.common.response;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -32,7 +33,8 @@ public class ApiResponseWrappingAdvice implements ResponseBodyAdvice<Object> {
     public @Nullable Object beforeBodyWrite(@Nullable Object body, MethodParameter returnType, MediaType selectedContentType,
                                             Class<? extends HttpMessageConverter<?>> selectedConverterType,
                                             ServerHttpRequest request, ServerHttpResponse response) {
-        if (body instanceof ApiResponse<?> || body instanceof ProblemDetail) {
+        if (body instanceof ApiResponse<?> || body instanceof ProblemDetail
+                || body instanceof byte[] || body instanceof Resource) {
             return body;
         }
         return ApiResponse.ok(body);

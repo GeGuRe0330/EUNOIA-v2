@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.List;
@@ -121,6 +122,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("필요한 요청 값이 빠졌어요.",
                 List.of(new ApiResponse.ApiError.FieldErrorDetail(ex.getParameterName(), "필수 값이에요."))));
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+                                                                          HttpHeaders headers,
+                                                                          HttpStatusCode status,
+                                                                          WebRequest request) {
+        log.warn("[{}] {}", HttpStatus.PAYLOAD_TOO_LARGE.value(), ex.getMessage());
+        ApiResponse<Void> body = ApiResponse.fail(new ApiResponse.ApiError("사진은 10MB까지 올릴 수 있어요.", null));
+        return handleExceptionInternal(ex, body, headers, HttpStatus.PAYLOAD_TOO_LARGE, request);
     }
 
     @Override

@@ -5,6 +5,10 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "members")
@@ -38,6 +42,10 @@ public class Member extends BaseEntity {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Status status;
+
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 36)
+    private UUID profileImageId;
 
     private Member(String email, String encodedPassword, String nickname, Integer age, Gender gender) {
         validateEmail(email);
@@ -80,6 +88,17 @@ public class Member extends BaseEntity {
         validateEncodedPassword(encodedPassword);
 
         this.password = encodedPassword;
+    }
+
+    public void changeProfileImage(UUID imageId) {
+        if (imageId == null) {
+            throw new IllegalArgumentException("프로필 이미지 키는 필수입니다.");
+        }
+        this.profileImageId = imageId;
+    }
+
+    public void removeProfileImage() {
+        this.profileImageId = null;
     }
 
     private void validateGender(Gender gender) {

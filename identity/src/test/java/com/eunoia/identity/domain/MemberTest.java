@@ -3,6 +3,8 @@ package com.eunoia.identity.domain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -154,5 +156,45 @@ class MemberTest {
         assertThatThrownBy(() -> member.changePassword(" "))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(member.getPassword()).isEqualTo("new-encoded");
+    }
+
+    @Test
+    @DisplayName("새 회원은 프로필 이미지가 없고, 바꾸면 그 키를 갖는다.")
+    void changeProfileImage_setsImageId() {
+        Member member = Member.register("a@test.com", "encoded", "개구리", 27, Gender.NONE);
+        assertThat(member.getProfileImageId()).isNull();
+
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        member.changeProfileImage(first);
+        assertThat(member.getProfileImageId()).isEqualTo(first);
+
+        member.changeProfileImage(second);
+        assertThat(member.getProfileImageId()).isEqualTo(second);
+    }
+
+    @Test
+    @DisplayName("null 키로는 프로필 이미지를 바꿀 수 없고, 기존 키는 그대로다.")
+    void changeProfileImage_withNull_throws() {
+        Member member = Member.register("a@test.com", "encoded", "개구리", 27, Gender.NONE);
+        UUID current = UUID.randomUUID();
+        member.changeProfileImage(current);
+
+        assertThatThrownBy(() -> member.changeProfileImage(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(member.getProfileImageId()).isEqualTo(current);
+    }
+
+    @Test
+    @DisplayName("프로필 이미지를 지우면 키가 없어지고, 없는 상태에서 다시 지워도 된다(멱등).")
+    void removeProfileImage_isIdempotent() {
+        Member member = Member.register("a@test.com", "encoded", "개구리", 27, Gender.NONE);
+        member.changeProfileImage(UUID.randomUUID());
+
+        member.removeProfileImage();
+        assertThat(member.getProfileImageId()).isNull();
+
+        member.removeProfileImage();
+        assertThat(member.getProfileImageId()).isNull();
     }
 }
