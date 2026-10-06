@@ -110,18 +110,24 @@ public class RecordsFlowIntegrationTest {
         return entryId.longValue();
     }
 
-    // 글을 쓰고 비동기 분석(SUCCESS 또는 FAILED)이 저장될 때까지 기다린다
+    // 글을 쓰고 비동기 분석이 끝날 때까지(PROCESSING이 아니게 될 때까지, SUCCESS 또는 FAILED) 기다린다
     private Long writeAnalyzedEntry(MockHttpSession session, String content, String entryDate) throws Exception {
         Long entryId = writeEntry(session, content, entryDate);
-        waitUntil(() -> countRows("SELECT COUNT(*) FROM emotion_analyses WHERE entry_id = ?", entryId) == 1,
-                "분석이 제한 시간 안에 저장되지 않았습니다. entryId=" + entryId);
+        waitUntil(() -> countRows("SELECT COUNT(*) FROM emotion_analyses WHERE entry_id = ? AND status <> 'PROCESSING'", entryId) == 1,
+                "분석이 제한 시간 안에 끝나지 않았습니다. entryId=" + entryId);
         return entryId;
     }
 
-    // "분석 처리 중"(분석 행이 아직 없음) 상태를 만든다 — 분석 완료를 기다린 뒤 행을 지운다
+    // "분석 처리 중"(PROCESSING 행) 상태를 만든다 — 분석 완료를 기다린 뒤 행을 PROCESSING으로 되돌리고 결과를 비운다
     private Long writeEntryWithoutAnalysis(MockHttpSession session, String content, String entryDate) throws Exception {
         Long entryId = writeAnalyzedEntry(session, content, entryDate);
-        jdbcTemplate.update("DELETE FROM emotion_analyses WHERE entry_id = ?", entryId);
+        jdbcTemplate.update("""
+                UPDATE emotion_analyses
+                   SET status = 'PROCESSING', emotion_detected = NULL, keywords = NULL, insight_summary = NULL,
+                       flow_hint = NULL, emotion_summary = NULL, emotion_score = NULL, entry_clarity_score = NULL,
+                       entry_clarity_reason = NULL, warm_messages = NULL, failure_reason = NULL
+                 WHERE entry_id = ?
+                """, entryId);
         return entryId;
     }
 

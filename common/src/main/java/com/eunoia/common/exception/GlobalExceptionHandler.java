@@ -45,7 +45,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (status.is5xxServerError()) {
             log.warn("[{}] {}", status.value(), e.getMessage(), e);
         } else {
-            log.debug("[{}] {}", status.value(), e.getMessage());
+            log.warn("[{}] {}", status.value(), e.getMessage());
         }
         return fail(status, e.getMessage());
     }

@@ -86,14 +86,17 @@ public class MetaAnalysisFlowIntegrationTest {
         return entryId.longValue();
     }
 
-    // @ApplicationModuleListener는 비동기 실행이라, 분석이 끝날 때까지 조회 API를 직접 폴링
+    // 분석은 비동기 실행이라, PROCESSING이 끝날 때까지(SUCCESS 또는 FAILED) 조회 API를 직접 폴링
     private void waitForAnalysisReady(MockHttpSession session, Long entryId) throws Exception {
         long deadline = System.currentTimeMillis() + 5000;
         while (System.currentTimeMillis() < deadline) {
             MvcResult result = mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                     .andReturn();
             if (result.getResponse().getStatus() == 200) {
-                return;
+                String status = JsonPath.read(result.getResponse().getContentAsString(), "$.data.status");
+                if (!"PROCESSING".equals(status)) {
+                    return;
+                }
             }
             Thread.sleep(200);
         }
