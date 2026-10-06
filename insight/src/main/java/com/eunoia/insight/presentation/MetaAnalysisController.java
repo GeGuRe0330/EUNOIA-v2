@@ -2,11 +2,15 @@ package com.eunoia.insight.presentation;
 
 import com.eunoia.common.security.AuthenticatedPrincipal;
 import com.eunoia.insight.application.MetaAnalysisService;
+import com.eunoia.insight.application.dto.MetaAnalysisInfo;
+import com.eunoia.insight.domain.MetaAnalysisGenerationStatus;
 import com.eunoia.insight.presentation.dto.MetaAnalysisHistoryResponse;
 import com.eunoia.insight.presentation.dto.MetaAnalysisResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,9 +34,13 @@ public class MetaAnalysisController {
     }
 
     @PostMapping
-    @Operation(summary = "메타분석 생성", description = "조건이 충족되면 메타분석을 생성하거나 갱신한다.")
-    public MetaAnalysisResponse generate(@AuthenticationPrincipal AuthenticatedPrincipal principal) {
-        return MetaAnalysisResponse.from(metaAnalysisService.generate(principal.getMemberId()));
+    @Operation(summary = "메타분석 생성",
+            description = "조건이 충족되면 메타분석 생성을 접수한다(202, 진행 상태는 GET /latest의 generationStatus로 폴링). 접수할 작업이 없으면(기록 부족·구성 동일) 200.")
+    public ResponseEntity<MetaAnalysisResponse> generate(@AuthenticationPrincipal AuthenticatedPrincipal principal) {
+        MetaAnalysisInfo info = metaAnalysisService.generate(principal.getMemberId());
+        HttpStatus status = info.generationStatus() == MetaAnalysisGenerationStatus.PROCESSING
+                ? HttpStatus.ACCEPTED : HttpStatus.OK;
+        return ResponseEntity.status(status).body(MetaAnalysisResponse.from(info));
     }
 
     @GetMapping

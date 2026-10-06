@@ -2,6 +2,7 @@ package com.eunoia.insight.presentation.dto;
 
 import com.eunoia.insight.application.dto.MetaAnalysisInfo;
 import com.eunoia.insight.domain.MetaAnalysisContent;
+import com.eunoia.insight.domain.MetaAnalysisGenerationStatus;
 import com.eunoia.insight.domain.MetaAnalysisStatus;
 
 import java.time.LocalDate;
@@ -15,7 +16,9 @@ public record MetaAnalysisResponse(
         int currentCount,
         MetaAnalysisContent content,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        MetaAnalysisGenerationStatus generationStatus,
+        String generationReason
 ) {
     public static MetaAnalysisResponse from(MetaAnalysisInfo info) {
         return new MetaAnalysisResponse(
@@ -26,7 +29,9 @@ public record MetaAnalysisResponse(
                 info.currentCount(),
                 info.content(),
                 info.createdAt(),
-                info.updatedAt()
+                info.updatedAt(),
+                info.generationStatus(),
+                info.generationReason()
         );
     }
 }
