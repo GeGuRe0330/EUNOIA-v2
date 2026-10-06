@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record MetaAnalysisHistoryResponse(
+        Long id,
         LocalDate periodStart,
         LocalDate periodEnd,
         Integer basedOnCount,
@@ -17,6 +18,7 @@ public record MetaAnalysisHistoryResponse(
 ) {
     public static MetaAnalysisHistoryResponse from(MetaAnalysisHistoryItem item) {
         return new MetaAnalysisHistoryResponse(
+                item.id(),
                 item.periodStart(), item.periodEnd(), item.basedOnCount(),
                 item.excludedEntryCount(), item.content(), item.createdAt(), item.updatedAt()
         );

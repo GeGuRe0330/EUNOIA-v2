@@ -4,24 +4,18 @@ import com.eunoia.analysis.query.EmotionAnalysisCandidate;
 import com.eunoia.analysis.query.EmotionAnalysisQueryApi;
 import com.eunoia.insight.application.dto.MetaAnalysisHistoryItem;
 import com.eunoia.insight.application.dto.MetaAnalysisInfo;
-import com.eunoia.insight.domain.MetaAnalysisAiResponse;
-import com.eunoia.insight.domain.MetaAnalysisAnalyzer;
-import com.eunoia.insight.domain.MetaAnalysisContent;
-import com.eunoia.insight.domain.MetaAnalysisInput;
+import com.eunoia.insight.domain.MetaAnalysisGenerationStatus;
 import com.eunoia.insight.domain.MetaAnalysisResult;
 import com.eunoia.insight.domain.MetaAnalysisResultRepository;
 import com.eunoia.insight.domain.MetaAnalysisStatus;
-import com.eunoia.journal.query.EmotionEntryContent;
-import com.eunoia.journal.query.EmotionEntryQueryApi;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,10 +24,9 @@ public class MetaAnalysisService {
     private static final long PERIOD_LOOKBACK_DAYS = 29;
 
     private final EmotionAnalysisQueryApi analysisQueryApi;
-    private final EmotionEntryQueryApi journalQueryApi;
     private final MetaAnalysisCandidateSelector candidateSelector;
     private final MetaAnalysisRegenerationGuard regenerationGuard;
-    private final MetaAnalysisAnalyzer analyzer;
+    private final MetaAnalysisGenerationClaimer generationClaimer;
     private final MetaAnalysisResultRepository metaAnalysisResultRepository;
 
     @Transactional(readOnly = true)
@@ -44,12 +37,13 @@ public class MetaAnalysisService {
         MetaAnalysisSelection selection = selectCandidates(memberId, periodStart, periodEnd);
         MetaAnalysisStatus status = resolveStatus(selection.selected().size());
 
-        MetaAnalysisResult latest = metaAnalysisResultRepository.findLatestByMemberId(memberId).orElse(null);
+        MetaAnalysisResult latestSuccess = metaAnalysisResultRepository.findLatestSuccessByMemberId(memberId).orElse(null);
+        MetaAnalysisResult todayAttempt = metaAnalysisResultRepository.findLatestAttemptOfDay(memberId, periodEnd).orElse(null);
 
-        return MetaAnalysisInfo.of(status, periodStart, periodEnd, selection.selected().size(), latest);
+        return MetaAnalysisInfo.of(status, periodStart, periodEnd, selection.selected().size(), latestSuccess, todayAttempt);
     }
 
-    @Transactional
+    // 트랜잭션 없이 조율만 한다 — GPT 호출은 비동기 워커가, 새 시도 행 생성은 Claimer가 별도 트랜잭션으로 한다
     public MetaAnalysisInfo generate(Long memberId) {
         LocalDate periodEnd = LocalDate.now();
         LocalDate periodStart = periodEnd.minusDays(PERIOD_LOOKBACK_DAYS);
@@ -58,21 +52,37 @@ public class MetaAnalysisService {
         List<EmotionAnalysisCandidate> selected = selection.selected();
 
         if (selected.size() < MetaAnalysisCandidateSelector.MAX_CANDIDATES) {
-            return MetaAnalysisInfo.of(MetaAnalysisStatus.PREPARING, periodStart, periodEnd, selected.size(), null);
+            return MetaAnalysisInfo.of(MetaAnalysisStatus.PREPARING, periodStart, periodEnd, selected.size(), null, null);
         }
 
         List<Long> entryIds = selected.stream().map(EmotionAnalysisCandidate::entryId).toList();
-        Optional<MetaAnalysisResult> latest = metaAnalysisResultRepository.findLatestByMemberId(memberId);
+        Optional<MetaAnalysisResult> latestSuccess = metaAnalysisResultRepository.findLatestSuccessByMemberId(memberId);
+        Optional<MetaAnalysisResult> todayAttempt = metaAnalysisResultRepository.findLatestAttemptOfDay(memberId, periodEnd);
 
-        if (regenerationGuard.isUnchanged(entryIds, selection.excludedEntryCount(), latest)) {
-            return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(), latest.orElse(null));
+        if (regenerationGuard.isUnchanged(entryIds, selection.excludedEntryCount(), latestSuccess)) {
+            return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(),
+                    latestSuccess.orElse(null), todayAttempt.orElse(null));
         }
 
-        MetaAnalysisContent content = buildContent(memberId, selected, entryIds, selection.excludedEntryCount());
+        if (todayAttempt.isPresent() && todayAttempt.get().getGenerationStatus() == MetaAnalysisGenerationStatus.PROCESSING) {
+            return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(),
+                    latestSuccess.orElse(null), todayAttempt.get());
+        }
 
-        MetaAnalysisResult saved = upsert(memberId, periodStart, periodEnd, selected.size(), selection.excludedEntryCount(), content);
-
-        return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(), saved);
+        int nextAttemptNo = todayAttempt.map(attempt -> attempt.getAttemptNo() + 1).orElse(1);
+        try {
+            MetaAnalysisResult started = generationClaimer.claim(memberId, periodStart, periodEnd, nextAttemptNo,
+                    selected.size(), selection.excludedEntryCount(), entryIds);
+            return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(),
+                    latestSuccess.orElse(null), started);
+        } catch (DataIntegrityViolationException e) {
+            // 동시 요청이 먼저 같은 시도 번호를 만들었다 — 그 진행 중인 작업의 상태를 돌려준다(GPT는 한 번만 호출됨)
+            MetaAnalysisResult concurrent = metaAnalysisResultRepository.findLatestAttemptOfDay(memberId, periodEnd)
+                    .filter(attempt -> attempt.getGenerationStatus() == MetaAnalysisGenerationStatus.PROCESSING)
+                    .orElseThrow(() -> e);
+            return MetaAnalysisInfo.of(MetaAnalysisStatus.READY, periodStart, periodEnd, selected.size(),
+                    latestSuccess.orElse(null), concurrent);
+        }
     }
 
     private MetaAnalysisSelection selectCandidates(Long memberId, LocalDate periodStart, LocalDate periodEnd) {
@@ -86,64 +96,9 @@ public class MetaAnalysisService {
                 : MetaAnalysisStatus.PREPARING;
     }
 
-    private MetaAnalysisContent buildContent(Long memberId, List<EmotionAnalysisCandidate> selected, List<Long> entryIds,
-                                              int excludedEntryCount) {
-        Map<Long, String> contentsByEntryId = journalQueryApi.findContentsByEntryIds(memberId, entryIds).stream()
-                .collect(Collectors.toMap(EmotionEntryContent::entryId, EmotionEntryContent::content));
-
-        List<String> entryContents = selected.stream()
-                .map(candidate -> Optional.ofNullable(contentsByEntryId.get(candidate.entryId()))
-                        .orElseThrow(() -> new IllegalStateException(
-                                "선택된 일기의 원문을 찾을 수 없습니다. entryId=" + candidate.entryId())))
-                .toList();
-
-        int clarityScoreAverage = calculateClarityScoreAverage(selected);
-
-        MetaAnalysisInput input = new MetaAnalysisInput(entryContents, excludedEntryCount, clarityScoreAverage);
-        MetaAnalysisAiResponse aiResponse = analyzer.analyze(input);
-
-        List<MetaAnalysisContent.RepresentativeEntry> evidence = selected.stream()
-                .map(candidate -> new MetaAnalysisContent.RepresentativeEntry(
-                        candidate.entryId(), candidate.entryDate(), resolveWhySelected(candidate.entryClarityReason())))
-                .toList();
-
-        MetaAnalysisContent.Clarity clarity = new MetaAnalysisContent.Clarity(
-                clarityScoreAverage,
-                aiResponse.clarity().clarityReasons(),
-                aiResponse.clarity().notVisibleYet(),
-                aiResponse.clarity().nextActions());
-
-        return new MetaAnalysisContent(aiResponse.outer(), aiResponse.inner(), clarity, evidence);
-    }
-
-    private int calculateClarityScoreAverage(List<EmotionAnalysisCandidate> selected) {
-        return (int) Math.round(selected.stream()
-                .mapToInt(EmotionAnalysisCandidate::entryClarityScore)
-                .average()
-                .orElse(0));
-    }
-
-    private String resolveWhySelected(String entryClarityReason) {
-        if (entryClarityReason == null || entryClarityReason.isBlank()) {
-            return "감정의 흐름과 맥락이 비교적 선명하게 드러나 있어요.";
-        }
-        return entryClarityReason;
-    }
-
-    private MetaAnalysisResult upsert(Long memberId, LocalDate periodStart, LocalDate periodEnd,
-                                       int basedOnCount, int excludedEntryCount, MetaAnalysisContent content) {
-        return metaAnalysisResultRepository.findByMemberIdAndPeriodEnd(memberId, periodEnd)
-                .map(existing -> {
-                    existing.update(basedOnCount, excludedEntryCount, content);
-                    return metaAnalysisResultRepository.save(existing);
-                })
-                .orElseGet(() -> metaAnalysisResultRepository.save(
-                        MetaAnalysisResult.create(memberId, periodStart, periodEnd, basedOnCount, excludedEntryCount, content)));
-    }
-
     @Transactional(readOnly = true)
     public List<MetaAnalysisHistoryItem> getHistory(Long memberId) {
-        return metaAnalysisResultRepository.findAllByMemberIdOrderByPeriodEndDesc(memberId).stream()
+        return metaAnalysisResultRepository.findAllSuccessByMemberId(memberId).stream()
                 .map(MetaAnalysisHistoryItem::from)
                 .toList();
     }
