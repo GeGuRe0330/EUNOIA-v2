@@ -3,8 +3,3 @@ server:
     session:
       cookie:
         secure: false
-
-logging:
-  level:
-    com.eunoia.common.exception: debug
-    com.eunoia.identity.application: debug

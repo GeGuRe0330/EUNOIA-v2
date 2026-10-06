@@ -69,7 +69,7 @@ public class ProfileImageService {
         try {
             return profileImageProcessor.toProfileJpeg(original);
         } catch (InvalidProfileImageException e) {
-            log.debug("[400] 프로필 이미지 거절: {}", e.getMessage());
+            log.warn("[400] 프로필 이미지 거절: {}", e.getMessage());
             throw new BusinessException(HttpStatus.BAD_REQUEST, "올릴 수 없는 사진이에요.");
         }
     }
