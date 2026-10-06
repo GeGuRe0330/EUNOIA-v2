@@ -1,5 +1,7 @@
 package com.eunoia.analysis;
 
+import com.eunoia.analysis.application.EmotionAnalysisTimeoutSweeper;
+import com.eunoia.analysis.domain.EmotionAnalysisRepository;
 import com.eunoia.analysis.domain.EmotionAnalysisResult;
 import com.eunoia.completion.client.StructuredPromptClient;
 import com.eunoia.journal.query.EmotionEntryQueryApi;
@@ -14,21 +16,25 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -59,6 +65,13 @@ public class EmotionAnalysisFlowIntegrationTest {
 
     @Autowired
     private EmotionEntryQueryApi emotionEntryQueryApi;
+
+    @Autowired
+    private EmotionAnalysisTimeoutSweeper timeoutSweeper;
+
+    // 일기 작성과 같은 트랜잭션에서 PROCESSING 행을 저장하는 동기 리스너의 실패를 흉내 내기 위해 spy로 감싼다(평소엔 실제 동작 그대로)
+    @MockitoSpyBean
+    private EmotionAnalysisRepository emotionAnalysisRepository;
 
     //mock테스트 전용 회원가입+로그인 메서드
     private MockHttpSession signupAndLogin(String email, String password, String nickname, int age, String gender) throws Exception {
@@ -94,7 +107,7 @@ public class EmotionAnalysisFlowIntegrationTest {
         return entryId.longValue();
     }
 
-    // @ApplicationModuleListener는 비동기 실행이라, 분석이 끝날 때까지 조회 API를 직접 폴링
+    // 분석은 비동기 실행이라, PROCESSING이 끝날 때까지(SUCCESS 또는 FAILED) 조회 API를 직접 폴링
     // (프론트가 실제로 하게 될 방식과 동일한 방식으로 대기)
     private void waitForAnalysisReady(MockHttpSession session, Long entryId) throws Exception {
         long deadline = System.currentTimeMillis() + 5000;
@@ -102,11 +115,42 @@ public class EmotionAnalysisFlowIntegrationTest {
             MvcResult result = mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
                     .andReturn();
             if (result.getResponse().getStatus() == 200) {
-                return;
+                String status = JsonPath.read(result.getResponse().getContentAsString(), "$.data.status");
+                if (!"PROCESSING".equals(status)) {
+                    return;
+                }
             }
             Thread.sleep(200);
         }
-        throw new AssertionError("분석 결과가 제한 시간 안에 준비되지 않았습니다.");
+        throw new AssertionError("분석이 제한 시간 안에 끝나지 않았습니다.");
+    }
+
+    private EmotionAnalysisResult defaultStub() {
+        return new EmotionAnalysisResult(
+                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
+                List.of("문장1", "문장2", "문장3"));
+    }
+
+    // 앞의 firstCount번은 바로 stub을 돌려주고, 그 뒤의 GPT 호출은 반환된 래치가 풀릴 때까지 붙잡는다(PROCESSING 상태를 유지하려고)
+    private CountDownLatch stubGptHoldingAfter(int firstCount, EmotionAnalysisResult stub) {
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        when(structuredPromptClient.call(anyString(), any())).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() > firstCount && !release.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("테스트가 GPT 응답을 풀어주지 않았습니다.");
+            }
+            return stub;
+        });
+        return release;
+    }
+
+    // @SQLRestriction을 거치지 않는 JDBC 조회 — 소프트 삭제된 분석 행도 보인다
+    private String analysisStatus(Long entryId) {
+        return jdbcTemplate.queryForObject("SELECT status FROM emotion_analyses WHERE entry_id = ?", String.class, entryId);
+    }
+
+    private String analysisEmotionDetected(Long entryId) {
+        return jdbcTemplate.queryForObject("SELECT emotion_detected FROM emotion_analyses WHERE entry_id = ?", String.class, entryId);
     }
 
     private void deleteEntry(MockHttpSession session, Long entryId) throws Exception {
@@ -359,11 +403,9 @@ public class EmotionAnalysisFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("분석(GPT 호출) 도중 일기가 삭제되면, 분석 완료 후 저장된 분석도 소프트 삭제된다.")
-    void deleteEntry_duringAnalysis_savedAnalysisIsSoftDeleted() throws Exception {
-        EmotionAnalysisResult stub = new EmotionAnalysisResult(
-                "평온", "평온,안정", "요약", "흐름", "감정요약", 80.0, 90, "충분함",
-                List.of("문장1", "문장2", "문장3"));
+    @DisplayName("분석(GPT 호출) 도중 일기가 삭제되면, PROCESSING 행이 바로 소프트 삭제되고 GPT 결과는 반영되지 않는다.")
+    void deleteEntry_duringAnalysis_softDeletesProcessingRow_andDiscardsResult() throws Exception {
+        EmotionAnalysisResult stub = defaultStub();
         CountDownLatch gptStarted = new CountDownLatch(1);
         CountDownLatch releaseGpt = new CountDownLatch(1);
         // GPT 호출에 들어간 뒤(=분석 전 확인 통과 후) 테스트가 삭제를 끝낼 때까지 응답을 붙잡는다
@@ -379,16 +421,15 @@ public class EmotionAnalysisFlowIntegrationTest {
         Long entryId = writeEntry(session, "분석 중에 지울 일기", "2026-09-20");
         assertThat(gptStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
-        deleteEntry(session, entryId); // 이 시점엔 분석이 아직 저장 전 → 삭제 구독은 지울 분석이 없음
-        // 삭제 구독이 "빈손으로" 끝난 뒤에 GPT를 풀어야, 분석을 지우는 주체가 저장 후 재확인뿐임이 보장된다
-        // (테스트 설정 completion-mode: DELETE — 처리 완료된 이벤트는 event_publication에서 행이 사라짐)
-        waitUntil(() -> jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM event_publication WHERE event_type LIKE '%EmotionEntryDeleted'", Integer.class) == 0,
-                "삭제 이벤트 처리가 제한 시간 안에 끝나지 않았습니다.");
-        assertThat(isAnalysisSoftDeleted(entryId)).isFalse(); // 아직 분석 행 자체가 없음
-        releaseGpt.countDown();
+        deleteEntry(session, entryId); // 분석 행(PROCESSING)은 이미 있으므로 삭제 구독이 바로 소프트 삭제한다
+        waitUntil(() -> isAnalysisSoftDeleted(entryId), "처리 중인 분석이 삭제 이벤트로 제한 시간 안에 소프트 삭제되지 않았습니다.");
+        assertThat(analysisStatus(entryId)).isEqualTo("PROCESSING");
 
-        waitUntil(() -> isAnalysisSoftDeleted(entryId), "분석 중 삭제된 글의 분석이 저장 후 재확인으로 소프트 삭제되지 않았습니다.");
+        releaseGpt.countDown();
+        Thread.sleep(500); // 기록기가 소프트 삭제된 행을 찾지 못해 결과를 버릴 시간
+        assertThat(analysisStatus(entryId)).isEqualTo("PROCESSING"); // 결과가 되살아나 반영되지 않았다
+        assertThat(analysisEmotionDetected(entryId)).isNull();
+        assertThat(isAnalysisSoftDeleted(entryId)).isTrue();
         mockMvc.perform(get("/api/v1/analyses/latest").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").doesNotExist());
@@ -413,5 +454,116 @@ public class EmotionAnalysisFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SUCCESS"));
         verify(structuredPromptClient).call(contains("긴글시작-"), any());
+    }
+
+    @Test
+    @DisplayName("일기를 작성한 직후에는 404가 아니라 200 + PROCESSING(결과 필드는 비어있음)이 조회된다.")
+    void write_thenImmediateGet_returnsProcessing() throws Exception {
+        CountDownLatch releaseGpt = stubGptHoldingAfter(0, defaultStub());
+
+        MockHttpSession session = signupAndLogin("processing@test.com", "rawPassword1!", "처리중", 20, "FEMALE");
+        Long entryId = writeEntry(session, "방금 쓴 일기", "2026-09-20");
+        try {
+            mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", entryId).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.entryId").value(entryId))
+                    .andExpect(jsonPath("$.data.status").value("PROCESSING"))
+                    .andExpect(jsonPath("$.data.emotionDetected").doesNotExist())
+                    .andExpect(jsonPath("$.data.warmMessages").doesNotExist())
+                    .andExpect(jsonPath("$.data.reason").doesNotExist());
+        } finally {
+            releaseGpt.countDown();
+        }
+        waitForAnalysisReady(session, entryId);
+    }
+
+    @Test
+    @DisplayName("가장 최근 일기가 처리 중이면 /latest는 그 행을 건너뛰고 직전 분석을 반환하며, /scores에서도 제외된다.")
+    void getLatestAndScores_whenMostRecentIsProcessing_skipsProcessing() throws Exception {
+        CountDownLatch releaseGpt = stubGptHoldingAfter(1, defaultStub());
+
+        MockHttpSession session = signupAndLogin("latestprocessing@test.com", "rawPassword1!", "처리중최신", 20, "FEMALE");
+        Long earlierId = writeEntry(session, "먼저 쓴 일기(완료)", "2026-09-10");
+        waitForAnalysisReady(session, earlierId);
+        Long laterId = writeEntry(session, "나중에 쓴 일기(처리 중)", "2026-09-20");
+        try {
+            mockMvc.perform(get("/api/v1/analyses/by-entry/{entryId}", laterId).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("PROCESSING"));
+            mockMvc.perform(get("/api/v1/analyses/latest").session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.entryId").value(earlierId));
+            mockMvc.perform(get("/api/v1/analyses/scores").session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.length()").value(1))
+                    .andExpect(jsonPath("$.data[0].entryId").value(earlierId));
+        } finally {
+            releaseGpt.countDown();
+        }
+
+        waitForAnalysisReady(session, laterId);
+        mockMvc.perform(get("/api/v1/analyses/latest").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entryId").value(laterId));
+    }
+
+    @Test
+    @DisplayName("멈춘 처리 sweeper는 5분 넘은 PROCESSING만 FAILED로 확정하고, 최근·성공·소프트 삭제된 행은 건드리지 않으며, 이후 도착한 결과는 버린다.")
+    void sweeper_failsOnlyStuckProcessing_andLateResultIsDiscarded() throws Exception {
+        CountDownLatch releaseGpt = stubGptHoldingAfter(1, defaultStub());
+
+        MockHttpSession session = signupAndLogin("sweeper@test.com", "rawPassword1!", "스위퍼", 20, "FEMALE");
+        Long successId = writeEntry(session, "성공한 글", "2026-09-10");
+        waitForAnalysisReady(session, successId);
+        Long stuckId = writeEntry(session, "멈춘 글", "2026-09-11");
+        Long recentId = writeEntry(session, "최근 글", "2026-09-12");
+        Long deletedStuckId = writeEntry(session, "삭제된 멈춘 글", "2026-09-13");
+
+        LocalDateTime longAgo = LocalDateTime.now().minusMinutes(10);
+        for (Long id : List.of(successId, stuckId, deletedStuckId)) {
+            jdbcTemplate.update("UPDATE emotion_analyses SET created_at = ? WHERE entry_id = ?", longAgo, id);
+        }
+        jdbcTemplate.update("UPDATE emotion_analyses SET deleted_at = ? WHERE entry_id = ?", LocalDateTime.now(), deletedStuckId);
+
+        try {
+            timeoutSweeper.failStuckAnalyses();
+
+            assertThat(analysisStatus(stuckId)).isEqualTo("FAILED");
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT failure_reason FROM emotion_analyses WHERE entry_id = ?", String.class, stuckId))
+                    .isEqualTo("처리 시간 초과");
+            assertThat(analysisStatus(recentId)).isEqualTo("PROCESSING");          // 최근 글은 그대로
+            assertThat(analysisStatus(successId)).isEqualTo("SUCCESS");            // 오래됐어도 성공은 그대로
+            assertThat(analysisStatus(deletedStuckId)).isEqualTo("PROCESSING");    // 소프트 삭제된 행은 대상이 아님
+        } finally {
+            releaseGpt.countDown();
+        }
+
+        // 최근 글은 정상 완료되고, 이미 FAILED로 확정된 멈춘 글에는 늦게 도착한 결과가 반영되지 않는다
+        waitUntil(() -> "SUCCESS".equals(analysisStatus(recentId)), "최근 글의 분석이 제한 시간 안에 완료되지 않았습니다.");
+        Thread.sleep(300);
+        assertThat(analysisStatus(stuckId)).isEqualTo("FAILED");
+        assertThat(analysisEmotionDetected(stuckId)).isNull();
+    }
+
+    @Test
+    @DisplayName("PROCESSING 행 저장이 실패하면 일기 저장도 롤백된다(같은 트랜잭션).")
+    void write_whenProcessingRowSaveFails_rollsBackEntry() throws Exception {
+        MockHttpSession session = signupAndLogin("rollback@test.com", "rawPassword1!", "롤백", 20, "FEMALE");
+        doThrow(new RuntimeException("분석 행 저장 실패")).when(emotionAnalysisRepository).save(any());
+
+        mockMvc.perform(post("/api/v1/emotion-entries")
+                        .session(session)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"content":"롤백될 일기","entryDate":"2026-09-20"}
+                        """))
+                .andExpect(status().is5xxServerError());
+
+        Integer entryCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM emotion_entries e JOIN members m ON e.member_id = m.id WHERE m.email = ?",
+                Integer.class, "rollback@test.com");
+        assertThat(entryCount).isZero();
     }
 }

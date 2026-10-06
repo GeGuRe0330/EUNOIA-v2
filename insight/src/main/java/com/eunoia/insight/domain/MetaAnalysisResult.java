@@ -9,11 +9,13 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Table(name = "meta_analysis_results",  uniqueConstraints = @UniqueConstraint(
-        name = "uq_meta_analysis_member_period_end", columnNames = {"member_id", "period_end"}
-))
+        name = "uq_meta_analysis_member_period_end_attempt", columnNames = {"member_id", "period_end", "attempt_no"}),
+        indexes = @Index(name = "idx_meta_analysis_generation_status_created_at", columnList = "generation_status, created_at")
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MetaAnalysisResult extends BaseEntity {
@@ -38,8 +40,20 @@ public class MetaAnalysisResult extends BaseEntity {
     private Integer excludedEntryCount;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false)
     private MetaAnalysisContent content;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MetaAnalysisGenerationStatus generationStatus;
+
+    @Column(nullable = false)
+    private Integer attemptNo;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    private List<Long> selectedEntryIds;
+
+    @Column(length = 1000)
+    private String failureReason;
 
     private MetaAnalysisResult(Long memberId, LocalDate periodStart, LocalDate periodEnd,
                                Integer basedOnCount, Integer excludedEntryCount, MetaAnalysisContent content) {
@@ -54,6 +68,8 @@ public class MetaAnalysisResult extends BaseEntity {
         this.basedOnCount = basedOnCount;
         this.excludedEntryCount = excludedEntryCount;
         this.content = content;
+        this.generationStatus = MetaAnalysisGenerationStatus.SUCCESS;
+        this.attemptNo = 1;
     }
 
     public static MetaAnalysisResult create(Long memberId, LocalDate periodStart, LocalDate periodEnd,
@@ -61,13 +77,44 @@ public class MetaAnalysisResult extends BaseEntity {
         return new MetaAnalysisResult(memberId, periodStart, periodEnd, basedOnCount, excludedEntryCount, content);
     }
 
-    public void update(Integer basedOnCount, Integer excludedEntryCount, MetaAnalysisContent content) {
+    private MetaAnalysisResult(Long memberId, LocalDate periodStart, LocalDate periodEnd, Integer attemptNo,
+                               Integer basedOnCount, Integer excludedEntryCount, List<Long> selectedEntryIds) {
+        validateMemberId(memberId);
+        validatePeriod(periodStart, periodEnd);
+        validateAttemptNo(attemptNo);
         validateCounts(basedOnCount, excludedEntryCount);
-        validateContent(content);
+        validateSelectedEntryIds(selectedEntryIds);
 
+        this.memberId = memberId;
+        this.periodStart = periodStart;
+        this.periodEnd = periodEnd;
+        this.attemptNo = attemptNo;
         this.basedOnCount = basedOnCount;
         this.excludedEntryCount = excludedEntryCount;
+        this.selectedEntryIds = selectedEntryIds;
+        this.generationStatus = MetaAnalysisGenerationStatus.PROCESSING;
+    }
+
+    public static MetaAnalysisResult start(Long memberId, LocalDate periodStart, LocalDate periodEnd, Integer attemptNo,
+                                           Integer basedOnCount, Integer excludedEntryCount, List<Long> selectedEntryIds) {
+        return new MetaAnalysisResult(memberId, periodStart, periodEnd, attemptNo,
+                basedOnCount, excludedEntryCount, selectedEntryIds);
+    }
+
+    public void complete(MetaAnalysisContent content) {
+        validateProcessing();
+        validateContent(content);
+
+        this.generationStatus = MetaAnalysisGenerationStatus.SUCCESS;
         this.content = content;
+    }
+
+    public void markFailed(String failureReason) {
+        validateProcessing();
+        validateFailureReason(failureReason);
+
+        this.generationStatus = MetaAnalysisGenerationStatus.FAILED;
+        this.failureReason = failureReason;
     }
 
     private void validateMemberId(Long memberId) {
@@ -97,6 +144,30 @@ public class MetaAnalysisResult extends BaseEntity {
         }
         if (excludedEntryCount == null || excludedEntryCount < 0) {
             throw new IllegalArgumentException("excludedEntryCount는 0 이상이어야 합니다.");
+        }
+    }
+
+    private void validateAttemptNo(Integer attemptNo) {
+        if (attemptNo == null || attemptNo < 1) {
+            throw new IllegalArgumentException("attemptNo는 1 이상이어야 합니다.");
+        }
+    }
+
+    private void validateSelectedEntryIds(List<Long> selectedEntryIds) {
+        if (selectedEntryIds == null || selectedEntryIds.isEmpty()) {
+            throw new IllegalArgumentException("selectedEntryIds는 비어 있을 수 없습니다.");
+        }
+    }
+
+    private void validateFailureReason(String failureReason) {
+        if (failureReason == null || failureReason.isBlank()) {
+            throw new IllegalArgumentException("failureReason은 필수입니다.");
+        }
+    }
+
+    private void validateProcessing() {
+        if (this.generationStatus != MetaAnalysisGenerationStatus.PROCESSING) {
+            throw new IllegalStateException("처리 중인 분석만 완료/실패로 바꿀 수 있습니다.");
         }
     }
 }

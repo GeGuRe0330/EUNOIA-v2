@@ -1,6 +1,7 @@
 package com.eunoia.analysis.domain;
 
 public enum AnalysisStatus {
+    PROCESSING,
     SUCCESS,
     FAILED
 }

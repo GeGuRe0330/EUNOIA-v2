@@ -1,11 +1,13 @@
 package com.eunoia.insight.infrastructure.repository;
 
+import com.eunoia.insight.domain.MetaAnalysisGenerationStatus;
 import com.eunoia.insight.domain.MetaAnalysisResult;
 import com.eunoia.insight.domain.MetaAnalysisResultRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,17 +23,39 @@ public class MetaAnalysisResultRepositoryAdapter implements MetaAnalysisResultRe
     }
 
     @Override
-    public Optional<MetaAnalysisResult> findLatestByMemberId(Long memberId) {
-        return jpaRepository.findTopByMemberIdOrderByPeriodEndDesc(memberId);
+    public Optional<MetaAnalysisResult> findLatestSuccessByMemberId(Long memberId) {
+        return jpaRepository.findTopByMemberIdAndGenerationStatusOrderByPeriodEndDescAttemptNoDesc(
+                memberId, MetaAnalysisGenerationStatus.SUCCESS
+        );
     }
 
     @Override
-    public Optional<MetaAnalysisResult> findByMemberIdAndPeriodEnd(Long memberId, LocalDate periodEnd) {
-        return jpaRepository.findByMemberIdAndPeriodEnd(memberId, periodEnd);
+    public List<MetaAnalysisResult> findAllSuccessByMemberId(Long memberId) {
+        return jpaRepository.findAllByMemberIdAndGenerationStatusOrderByPeriodEndDescAttemptNoDesc(
+                memberId,  MetaAnalysisGenerationStatus.SUCCESS
+        );
     }
 
     @Override
-    public List<MetaAnalysisResult> findAllByMemberIdOrderByPeriodEndDesc(Long memberId) {
-        return jpaRepository.findAllByMemberIdOrderByPeriodEndDesc(memberId);
+    public Optional<MetaAnalysisResult> findLatestAttemptOfDay(Long memberId,  LocalDate periodEnd) {
+        return jpaRepository.findTopByMemberIdAndPeriodEndOrderByAttemptNoDesc(memberId, periodEnd);
+    }
+
+    @Override
+    public Optional<MetaAnalysisResult> findById(Long id) {
+        return jpaRepository.findById(id);
+    }
+
+    @Override
+    public Optional<MetaAnalysisResult> findByIdForUpdate(Long id) {
+        return jpaRepository.findByIdForUpdate(id);
+    }
+
+    @Override
+    public int failProcessingCreatedBefore(LocalDateTime threshold, String failureReason) {
+        return jpaRepository.failProcessingCreatedBefore(
+                MetaAnalysisGenerationStatus.PROCESSING, MetaAnalysisGenerationStatus.FAILED,
+                failureReason, threshold, LocalDateTime.now()
+        );
     }
 }

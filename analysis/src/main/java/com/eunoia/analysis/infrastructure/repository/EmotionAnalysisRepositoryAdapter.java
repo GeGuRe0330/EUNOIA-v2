@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,8 +35,20 @@ public class EmotionAnalysisRepositoryAdapter implements EmotionAnalysisReposito
     }
 
     @Override
-    public Optional<EmotionAnalysis> findTopByMemberIdOrderByEntryDateDescEntryIdDesc(Long memberId) {
-        return jpaRepository.findTopByMemberIdOrderByEntryDateDescEntryIdDesc(memberId);
+    public Optional<EmotionAnalysis> findTopByMemberIdAndStatusInOrderByEntryDateDescEntryIdDesc(Long memberId, List<AnalysisStatus> statuses) {
+        return jpaRepository.findTopByMemberIdAndStatusInOrderByEntryDateDescEntryIdDesc(memberId, statuses);
+    }
+
+    @Override
+    public Optional<EmotionAnalysis> findByEntryIdForUpdate(Long entryId) {
+        return jpaRepository.findByEntryIdForUpdate(entryId);
+    }
+
+    @Override
+    public int failProcessingCreatedBefore(LocalDateTime threshold, String failureReason) {
+        return jpaRepository.failProcessingCreatedBefore(
+                AnalysisStatus.PROCESSING, AnalysisStatus.FAILED, failureReason, threshold, LocalDateTime.now()
+        );
     }
 
     @Override

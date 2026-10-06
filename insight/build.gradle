@@ -22,4 +22,5 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind' // GPT 응답 JSON 역직렬화 테스트용(런타임에는 spring-ai가 이미 가져옴)
 }
