@@ -8,6 +8,7 @@ import com.eunoia.journal.event.EmotionEntryDeleted;
 import com.eunoia.journal.event.EmotionEntryRecorded;
 import com.eunoia.journal.query.EmotionEntryQueryApi;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.modulith.events.ApplicationModuleListener;
@@ -21,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmotionAnalysisService {
@@ -77,6 +79,7 @@ public class EmotionAnalysisService {
             try {
                 result = emotionAnalyzer.analyze(content);
             } catch (RuntimeException e) {
+                log.warn("감정 분석 실패(GPT 호출) entryId={}: {}", event.entryId(), e.getMessage(), e);
                 resultRecorder.recordFailure(event.entryId(), failureReason(e));
                 return;
             }
@@ -86,6 +89,7 @@ public class EmotionAnalysisService {
                 EmotionAnalysis.start(event.entryId(), event.memberId(), event.entryDate()).complete(result);
             } catch (IllegalArgumentException e) {
                 if (attempt == MAX_VALIDATION_ATTEMPTS) {
+                    log.warn("감정 분석 실패(검증 {}회 소진) entryId={}: {}", MAX_VALIDATION_ATTEMPTS, event.entryId(), e.getMessage());
                     resultRecorder.recordFailure(event.entryId(), failureReason(e));
                     return;
                 }

@@ -13,6 +13,7 @@ import com.eunoia.insight.domain.MetaAnalysisResultRepository;
 import com.eunoia.journal.query.EmotionEntryContent;
 import com.eunoia.journal.query.EmotionEntryQueryApi;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class MetaAnalysisGenerationWorker {
@@ -51,6 +53,8 @@ public class MetaAnalysisGenerationWorker {
         try {
             content = buildContent(processing.get());
         } catch (RuntimeException e) {
+            // 사유는 DB(failure_reason)에도 남지만 콘솔에서 바로 원인을 볼 수 있게 로그로도 남긴다
+            log.warn("메타분석 생성 실패 resultId={}: {}", event.resultId(), e.getMessage(), e);
             resultRecorder.recordFailure(event.resultId(), failureReason(e));
             return;
         }

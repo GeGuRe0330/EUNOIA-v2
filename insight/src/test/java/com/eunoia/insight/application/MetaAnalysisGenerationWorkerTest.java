@@ -198,4 +198,24 @@ class MetaAnalysisGenerationWorkerTest {
 
         verify(resultRecorder).recordFailure(RESULT_ID, "x".repeat(1000));
     }
+
+    @Test
+    @DisplayName("GPT 응답의 목록 필드가 null이어도(근거 없음) 실패로 처리하지 않고 빈 목록으로 성공 기록한다.")
+    void handle_whenAiResponseHasNullLists_recordsSuccessWithEmptyLists() {
+        givenInputsAvailable();
+        when(analyzer.analyze(any())).thenReturn(new MetaAnalysisAiResponse(
+                new MetaAnalysisContent.Outer("겉모습 요약", null, null, null, null, null, null),
+                new MetaAnalysisContent.Inner("내면 요약", null, null, null, null, null, null),
+                new MetaAnalysisAiResponse.ClarityNarrative(null, null, null)));
+
+        worker.handle(event());
+
+        ArgumentCaptor<MetaAnalysisContent> captor = ArgumentCaptor.forClass(MetaAnalysisContent.class);
+        verify(resultRecorder).recordSuccess(eq(RESULT_ID), captor.capture());
+        verify(resultRecorder, never()).recordFailure(any(), any());
+        assertThat(captor.getValue().outer().keywords()).isEmpty();
+        assertThat(captor.getValue().inner().needs()).isEmpty();
+        assertThat(captor.getValue().clarity().clarityReasons()).isEmpty();
+        assertThat(captor.getValue().evidence()).hasSize(10);
+    }
 }
